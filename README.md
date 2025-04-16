@@ -1,4 +1,5 @@
-# astrbot_plugin_relationship
+# astrbot_plugin_relationship【本插件已废弃，仓库不再维护，功能已整合至astrbot_plugin_QQProfile插件】
+请移步至https://github.com/Zhalslar/astrbot_plugin_QQProfile
 
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.8+](https://img.shields.io/badge/Python-3.8%2B-blue.svg)](https://www.python.org/)
