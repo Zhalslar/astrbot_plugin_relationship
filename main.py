@@ -8,7 +8,7 @@ from astrbot.core.star.filter.permission import PermissionType
 
 
 @register(
-    "人际关系查看器",
+    "astrbot_plugin_relationship",
     "Zhalslar",
     "[仅aiocqhttp] bot人际关系管理器！包括查看好友列表、查看群列表、审批好友申请、审批群邀请、删好友、退群",
     "1.0.0",
