@@ -13,7 +13,7 @@ from astrbot.core.star.filter.platform_adapter_type import PlatformAdapterType
     "astrbot_plugin_relationship",
     "Zhalslar",
     "[仅aiocqhttp] bot人际关系管理器！包括查看好友列表、查看群列表、审批好友申请、审批群邀请、删好友、退群",
-    "1.0.0",
+    "1.0.3",
     "https://github.com/Zhalslar/astrbot_plugin_relationship",
 )
 class Relationship(Star):
@@ -50,7 +50,7 @@ class Relationship(Star):
     async def set_group_leave(
         self, event: AiocqhttpMessageEvent, group_id: int | None = None
     ):
-        """查看所有好友信息"""
+        """退出指定群聊"""
         if not group_id:
             yield event.plain_result("要指明退哪个群哟~")
             return
@@ -71,7 +71,7 @@ class Relationship(Star):
     async def delete_friend(
         self, event: AiocqhttpMessageEvent, input_id: int | None = None
     ):
-        """查看所有好友信息"""
+        """删除指定好友"""
         chain = event.get_messages()
         target_id: int = input_id or next(
             int(seg.qq) for seg in chain if (isinstance(seg, Comp.At))
@@ -93,6 +93,7 @@ class Relationship(Star):
     async def event_monitoring(self, event: AiocqhttpMessageEvent):
         """监听好友申请或群邀请"""
         client = event.bot
+        notice = ""
         #print(event.message_obj)
         if not hasattr(event, "message_obj") or not hasattr(
             event.message_obj, "raw_message"
@@ -186,7 +187,8 @@ class Relationship(Star):
             extra=extra,
             approve=False
         )
-        yield event.plain_result(reply)
+        if reply:
+            yield event.plain_result(reply)
 
     @staticmethod
     async def approve(
@@ -246,6 +248,6 @@ class Relationship(Star):
                         )
                 except:  # noqa: E722
                     reply = "这条申请处理过了或者格式不对"
-        else:
-            reply = "未指定要处理的申请"
+
         return reply
+
