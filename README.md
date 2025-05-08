@@ -42,14 +42,17 @@ git clone https://github.com/Zhalslar/astrbot_plugin_relationship
 
 |     指令      |                    说明                    |
 |:-------------:|:-----------------------------------------------:|
-| /好友列表       | 查看所有能触发meme合成的关键词  |
-| /群列表  | 具体查看某个meme的参数         |
+| /好友列表       | 查看所有好友 |
+| /群列表  | 查看所有群聊    |
 | (引用申请)/同意     |   同意好友申请、群邀请      |
 | (引用申请)/拒绝     |   拒绝好友申请、群邀请      |
 | /删除好友 (Q号或者@) |   删除此好友              |
 | /退群 (群号)         |   退出此群聊              |
 
 ## 示例图
+
+![download](https://github.com/user-attachments/assets/656ee439-a215-4aae-8ddd-96fad9067e6a)
+
 
 ## 🤝 TODO
 
@@ -66,4 +69,4 @@ git clone https://github.com/Zhalslar/astrbot_plugin_relationship
 
 ## 📌 注意事项
 
-- 想第一时间得到反馈的可以来作者的插件反馈群（QQ群）：460973561
+- 想第一时间得到反馈的可以来作者的插件反馈群（QQ群）：460973561（不点star不给进）
