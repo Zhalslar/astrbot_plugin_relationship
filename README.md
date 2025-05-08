@@ -51,6 +51,9 @@ git clone https://github.com/Zhalslar/astrbot_plugin_relationship
 
 ## 示例图
 
+![download](https://github.com/user-attachments/assets/656ee439-a215-4aae-8ddd-96fad9067e6a)
+
+
 ## 🤝 TODO
 
 - [x] 查看好友列表、群列表
