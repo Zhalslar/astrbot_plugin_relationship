@@ -3,5 +3,38 @@
         "description": "管理群",
         "type": "string",
         "hint": "bot收到的好友申请、群邀请在管理群里审批，不填则将审批信息私发给bot管理员"
+    },
+    "admins_id": {
+        "description": "管理员列表",
+        "type": "list",
+        "hint": "管理员列表，已自动从全局配置中获取（若填写则与全局管理员列表合并）"
+    },
+    "max_ban_duration": {
+        "description": "允许的最大禁言时间",
+        "type": "int",
+        "hint": "单位：秒，bot被禁言超过此时间时将自动退群，推荐值：一天",
+        "default": 86400
+    },
+    "max_group_capacity": {
+        "description": "最大群容量",
+        "type": "int",
+        "hint": "bot加的群若超过此容量将自动退群，可有效防止被乱拉群，推荐值：100",
+        "default": 100
+    },
+    "group_blacklist": {
+        "description": "群聊黑名单",
+        "type": "list",
+        "hint": "群聊黑名单，bot被踢时自动拉黑对应群聊，bot将不会再加入这些群"
+    },
+    "mutual_blacklist": {
+        "description": "互斥成员",
+        "type": "list",
+        "hint": "互斥成员，bot加入群时，若群内有这些成员，bot将自动退群"
+    },
+    "auto_check_messages": {
+        "description": "是否自动抽查群聊天记录",
+        "type": "bool",
+        "hint": "开启后，每次触发群管理事件时，bot会自动抽查对应群的聊天记录",
+        "default": true
     }
 }
