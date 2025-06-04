@@ -16,7 +16,7 @@ from astrbot.core.star.filter.platform_adapter_type import PlatformAdapterType
     "astrbot_plugin_relationship",
     "Zhalslar",
     "[仅aiocqhttp] bot人际关系管理器！包括查看好友列表、查看群列表、审批好友申请、审批群邀请、删好友、退群",
-    "1.0.6",
+    "1.0.7",
     "https://github.com/Zhalslar/astrbot_plugin_relationship",
 )
 class Relationship(Star):
@@ -28,6 +28,7 @@ class Relationship(Star):
         # 管理员列表
         self.admins_id: list[str] = context.get_config().get("admins_id", [])
         self.admins_id.extend(config.get("admins_id", []))
+        self.admins_id=list(set(self.admins_id))
         # 允许的最大禁言时间（秒）
         self.max_ban_duration: int = config.get("max_ban_duration", 86400)
         # 群聊黑名单
@@ -195,7 +196,7 @@ class Relationship(Star):
         friend_ids: list[int] = [f["user_id"] for f in friend_list]
         if user_id in friend_ids:
             reply = (
-                f"想加好友或拉群？要等开发群{self.manage_group}审批哟"
+                f"想加好友或拉群？要等开发群({self.manage_group})审批哟"
                 if self.manage_group
                 else "想加好友或拉群？要等Bot管理员审批哟"
             )
