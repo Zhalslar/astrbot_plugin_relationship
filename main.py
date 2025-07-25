@@ -353,7 +353,7 @@ class Relationship(Star):
                 await self.send_reply(client, f"呜呜ww..我在 {group_name}({group_id}) 被 {operator_name} 禁言了{self.convert_duration_advanced(duration)}")
             
             if duration > self.max_ban_duration:
-                await self.send_reply(client, f"\n禁言时间超过{self.convert_duration_advanced(self.max_ban_duration)}，我退群了")
+                await self.send_reply(client, f"禁言时间超过{self.convert_duration_advanced(self.max_ban_duration)}，我退群了")
                 await asyncio.sleep(3)
                 await client.set_group_leave(group_id=group_id)
             
@@ -479,7 +479,7 @@ class Relationship(Star):
                     logger.info(f"已为新群 {group_id_str} 安排了一个 {self.new_group_check_delay} 秒后的延迟抽查任务。")
             
             event.stop_event()
-            
+
     async def send_reply(self, client: CQHttp, message: str):
         """
         发送回复消息到管理群或管理员私聊
