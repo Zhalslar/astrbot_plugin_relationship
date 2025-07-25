@@ -353,7 +353,23 @@ class Relationship(Star):
                 await self.send_reply(client, f"呜呜ww..我在 {group_name}({group_id}) 被 {operator_name} 禁言了{self.convert_duration_advanced(duration)}")
             
             if duration > self.max_ban_duration:
-                await self.send_reply(client, f"禁言时间超过{self.convert_duration_advanced(self.max_ban_duration)}，我退群了")
+
+                # 1. 无论如何，只要决定退群，就先检查并取消延迟任务
+                group_id_str = str(group_id)
+                if group_id_str in self.scheduled_checks:
+                    task = self.scheduled_checks.pop(group_id_str)
+                    task.cancel()
+                    logger.info(f"机器人因禁言超期决定退群 {group_id}，已取消为其安排的延迟抽查任务。")
+
+                # 2. 然后，独立地检查并执行拉黑操作（带查重）
+                if group_id not in self.group_blacklist:
+                    self.group_blacklist.append(group_id)
+                    self.config.save_config()
+                    logger.info(f"群聊 {group_id} 已因禁言超期被加入黑名单。")
+
+                # 3. 更新通知文本，告知管理员已拉黑
+                await self.send_reply(client, f"禁言时间超过{self.convert_duration_advanced(self.max_ban_duration)}，我已将此群拉黑并退群了")
+
                 await asyncio.sleep(3)
                 await client.set_group_leave(group_id=group_id)
             
@@ -372,9 +388,16 @@ class Relationship(Star):
                 task.cancel()
                 logger.info(f"机器人被踢出群 {group_id}，已取消为其安排的延迟抽查任务。")
             
+            # --- 增加了查重判断 ---
+            # 先判断群是否已在黑名单中
+            if group_id not in self.group_blacklist:
+                # 如果不在，才执行添加和保存的操作
+                self.group_blacklist.append(group_id)
+                self.config.save_config()
+                logger.info(f"群聊 {group_id} 已因被踢被加入黑名单。")
+            # ------------------------------------
+            
             reply = f"呜呜ww..我被 {operator_name} 踢出了 {group_name}({group_id})，已将此群拉进黑名单"
-            self.group_blacklist.append(group_id)
-            self.config.save_config()
             await self.send_reply(client, reply)
 
             if self.auto_check_messages:
