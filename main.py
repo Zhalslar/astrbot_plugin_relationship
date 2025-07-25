@@ -353,7 +353,7 @@ class Relationship(Star):
                 await self.send_reply(client, f"呜呜ww..我在 {group_name}({group_id}) 被 {operator_name} 禁言了{self.convert_duration_advanced(duration)}")
             
             if duration > self.max_ban_duration:
-                await self.send_reply(client, f"禁言时间超过{self.convert_duration_advanced(self.max_ban_duration)}，我退群了")
+                await self.send_reply(client, f"\n禁言时间超过{self.convert_duration_advanced(self.max_ban_duration)}，我退群了")
                 await asyncio.sleep(3)
                 await client.set_group_leave(group_id=group_id)
             
@@ -455,6 +455,12 @@ class Relationship(Star):
                             return
                         
                         try:
+                            # 再次检查机器人是否还在群里，避免报错
+                            current_group_list = await client.get_group_list()
+                            if not any(str(g['group_id']) == group_id_str for g in current_group_list):
+                                logger.warning(f"执行延迟抽查时发现，机器人已不在群聊 {group_id_str} 中，任务中止。")
+                                return
+
                             success = await self.check_messages(client=client, target_id=group_id_str, is_automated=True)
                             
                             if not success:
@@ -473,7 +479,7 @@ class Relationship(Star):
                     logger.info(f"已为新群 {group_id_str} 安排了一个 {self.new_group_check_delay} 秒后的延迟抽查任务。")
             
             event.stop_event()
-
+            
     async def send_reply(self, client: CQHttp, message: str):
         """
         发送回复消息到管理群或管理员私聊
