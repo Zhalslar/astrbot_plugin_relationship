@@ -44,7 +44,10 @@ class Relationship(Star):
         self.new_group_check_delay: int = config.get("new_group_check_delay", 600)
         # 延迟抽查任务调度表
         self.scheduled_checks: Dict[str, asyncio.Task] = {}
+        self.default_check_count: int = config.get("default_check_count", 20)
+        self.max_check_count: int = config.get("max_check_count", 100)
 
+        
     @staticmethod
     def convert_duration_advanced(duration: int) -> str:
         """
@@ -353,29 +356,36 @@ class Relationship(Star):
                 await self.send_reply(client, f"呜呜ww..我在 {group_name}({group_id}) 被 {operator_name} 禁言了{self.convert_duration_advanced(duration)}")
             
             if duration > self.max_ban_duration:
-
-                # 1. 无论如何，只要决定退群，就先检查并取消延迟任务
+                # --- 核心修改在这里：调整了操作顺序 ---
+                # 1. 取消任务和拉黑的逻辑不变
                 group_id_str = str(group_id)
                 if group_id_str in self.scheduled_checks:
                     task = self.scheduled_checks.pop(group_id_str)
                     task.cancel()
                     logger.info(f"机器人因禁言超期决定退群 {group_id}，已取消为其安排的延迟抽查任务。")
-
-                # 2. 然后，独立地检查并执行拉黑操作（带查重）
                 if group_id not in self.group_blacklist:
                     self.group_blacklist.append(group_id)
                     self.config.save_config()
                     logger.info(f"群聊 {group_id} 已因禁言超期被加入黑名单。")
 
-                # 3. 更新通知文本，告知管理员已拉黑
+                # 2. 先发通知
                 await self.send_reply(client, f"禁言时间超过{self.convert_duration_advanced(self.max_ban_duration)}，我已将此群拉黑并退群了")
-
+                
+                # 3. 在退群前，先执行抽查！
+                if self.auto_check_messages:
+                    logger.info(f"因禁言超期退群，正在对群聊 {group_id} 执行最后一次抽查...")
+                    try:
+                        await self.check_messages(client=client, target_id=str(group_id), is_automated=True)
+                    except Exception as e:
+                        logger.error(f"退群前的最后抽查失败: {e}")
+                
+                # 4. 最后再执行退群操作
                 await asyncio.sleep(3)
                 await client.set_group_leave(group_id=group_id)
-            
-            if self.auto_check_messages:
-                await self.check_messages(client=client, target_id=str(group_id), is_automated=True)
+                # ----------------------------------------
+                #          
             event.stop_event()
+
 
         # 群成员减少事件 (被踢)
         elif (
@@ -533,20 +543,23 @@ class Relationship(Star):
         self, client: CQHttp, target_id: str, 
         reply_to_group: int | None = None, 
         reply_to_user: str | None = None,
-        is_automated: bool = False 
-    ):
+        is_automated: bool = False,
+        count: int = 20
+    ) -> bool:
         """
-        抽查指定群聊或好友的消息记录，并转发到指定群/用户/管理群/管理员
+        [最终版] 抽查消息。使用可配置的安全上限。
         """
+        # --- 核心修改：使用配置中的最大值作为安全上限 ---
+        if count > self.max_check_count:
+            count = self.max_check_count
+        
         result = None
-
         if is_automated:
             try:
-                result = await client.get_group_msg_history(group_id=int(target_id))
+                result = await client.get_group_msg_history(group_id=int(target_id), count=count)
             except Exception as e:
                 logger.warning(f"自动抽查群 {target_id} 失败，可能因为机器人已不在群内。错误: {e}")
                 return False
-
         else:
             is_group, is_friend = False, False
             group_list = await client.get_group_list()
@@ -555,8 +568,8 @@ class Relationship(Star):
                 friend_list = await client.get_friend_list()
                 if any(str(f['user_id']) == target_id for f in friend_list): is_friend = True
             
-            if is_group: result = await client.get_group_msg_history(group_id=int(target_id))
-            elif is_friend: result = await client.get_friend_msg_history(user_id=int(target_id))
+            if is_group: result = await client.get_group_msg_history(group_id=int(target_id), count=count)
+            elif is_friend: result = await client.get_friend_msg_history(user_id=int(target_id), count=count)
             else: raise ValueError(f"ID {target_id} 既不是群聊也不是好友")
 
         if not result or not result.get("messages"):
@@ -593,17 +606,48 @@ class Relationship(Star):
     @filter.permission_type(PermissionType.ADMIN)
     @filter.command("抽查")
     async def check_messages_handle(
-        self, event: AiocqhttpMessageEvent, target_id: str
+        self, event: AiocqhttpMessageEvent, target_id: str, count_str: str | None = None
     ):
         """
-        管理员命令：抽查指定ID（群聊或好友）的消息，并转发到当前群或私聊
+        [最终版] 指令入口，增加了对抽查条数的智能验证。
         """
+        final_count = 0
+
+        # --- 核心修改：参数验证逻辑 ---
+        if count_str is None:
+            # 1. 如果用户未提供条数，使用配置中的默认值
+            final_count = self.default_check_count
+        else:
+            # 2. 如果用户提供了条数，进行检查
+            try:
+                # 尝试将输入的字符串转换为整数
+                count = int(count_str)
+
+                # 检查是否为负数或零等不合理数字
+                if count <= 0:
+                    yield event.plain_result(f"啊？要抽取 {count_str} 条消息？")
+                    return
+                
+                # 检查是否超过最大限制
+                if count > self.max_check_count:
+                    yield event.plain_result(f"你要的消息条数超过最大限制（{self.max_check_count}条）啦")
+                    return
+                
+                final_count = count
+
+            except ValueError:
+                # 如果转换失败（说明输入的是小数或文本），则判定为不合理
+                yield event.plain_result(f"啊？要抽取 {count_str} 条消息？")
+                return
+        # --- 验证逻辑结束 ---
+
         try:
             await self.check_messages(
                 client=event.bot,
                 target_id=target_id,
                 reply_to_group=int(event.get_group_id()) if event.get_group_id() else None,
-                reply_to_user=event.get_sender_id()
+                reply_to_user=event.get_sender_id(),
+                count=final_count
             )
             event.stop_event()
         except Exception as e:
