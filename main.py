@@ -158,73 +158,80 @@ class Relationship(Star):
         await client.delete_friend(user_id=target_id)
         yield event.plain_result(f"已删除好友：{target_id}")
         
+    # ==================== 核心修改 1：重构 event_monitoring ====================
     @filter.platform_adapter_type(PlatformAdapterType.AIOCQHTTP)
     async def event_monitoring(self, event: AiocqhttpMessageEvent):
-        """
-        监听好友申请或群邀请事件，自动通知管理群或管理员审批
-        """
+        """监听好友申请或群邀请 (增加黑名单预警和优化的用户反馈)"""
         raw_message = getattr(event.message_obj, "raw_message", None)
-
-        if (
-            not isinstance(raw_message, dict)
-            or raw_message.get("post_type") != "request"
-        ):
+        if not isinstance(raw_message, dict) or raw_message.get("post_type") != "request":
             return
+            
         logger.info(f"收到好友申请或群邀请: {raw_message}")
         client = event.bot
         user_id: int = raw_message.get("user_id", 0)
-        nickname: str = (await client.get_stranger_info(user_id=int(user_id)))[
-            "nickname"
-        ] or "未知昵称"
+        nickname: str = (await client.get_stranger_info(user_id=int(user_id)))["nickname"] or "未知昵称"
         comment: str = raw_message.get("comment") or "无"
         flag = raw_message.get("flag")
-        notice = ""
-        # 加好友事件
+        
+        is_blacklisted_group = False
+
+        # 加好友事件 (逻辑不变)
         if raw_message.get("request_type") == "friend":
-            notice = (
-                f"【收到好友申请】同意吗："
-                f"\n昵称：{nickname}"
-                f"\nQQ号：{user_id}"
-                f"\nflag：{flag}"
-                f"\n验证信息：{comment}"
-            )
-
-        # 群邀请事件
-        elif (
-            raw_message.get("request_type") == "group"
-            and raw_message.get("sub_type") == "invite"
-        ):
-            group_id = raw_message.get("group_id", "")
-            group_name = (await client.get_group_info(group_id=group_id))[
-                "group_name"
-            ] or "未知群名"
-            # 通知信息
-            notice = (
-                f"【收到群邀请】同意吗："
-                f"\n邀请人昵称：{nickname}"
-                f"\n邀请人QQ：{user_id}"
-                f"\n群名称：{group_name}"
-                f"\n群号：{group_id}"
-                f"\nflag：{flag}"
-                f"\n验证信息：{comment}"
-            )
-
-        if notice:
+            notice = f"【收到好友申请】同意吗：\n昵称：{nickname}\nQQ号：{user_id}\nflag：{flag}\n验证信息：{comment}"
             await self.send_reply(client, notice)
 
-        # 反馈给用户，提示等待审批
-        friend_list: list[dict] = await client.get_friend_list()  # type: ignore
-        friend_ids: list[int] = [f["user_id"] for f in friend_list]
-        if user_id in friend_ids:
-            reply = (
-                f"想加好友或拉群？要等审核群审批哟"
-                if self.manage_group
-                else "想加好友或拉群？要等审核员审批哟"
-            )
-            try:
-                await client.send_private_msg(user_id=int(user_id), message=reply)
-            except Exception as e:
-                logger.error(f"无法反馈用户：{e}")
+        # 群邀请事件 (逻辑重构)
+        elif raw_message.get("request_type") == "group" and raw_message.get("sub_type") == "invite":
+            group_id = raw_message.get("group_id", 0)
+            group_name = (await client.get_group_info(group_id=group_id))["group_name"] or "未知群名"
+            
+            # 在通知审核员前，先检查是否为黑名单群
+            if self.is_group_in_blacklist(group_id):
+                is_blacklisted_group = True
+                notice_to_admin = (
+                    f"【收到群邀请 - ⚠️黑名单警告】\n"
+                    f"邀请人昵称：{nickname}\n"
+                    f"邀请人QQ：{user_id}\n"
+                    f"群名称：{group_name}\n"
+                    f"群号：{group_id}\n"
+                    f"flag：{flag}\n"
+                    f"验证信息：{comment}\n"
+                    f"❗警告: 该群为黑名单群聊，请谨慎通过。如审核通过，进群后将不会触发自动退群。"
+                )
+                await self.send_reply(client, notice_to_admin)
+                
+                reply_to_inviter = "⚠️该群已被列入黑名单，可能不会通过审核。"
+                try:
+                    await client.send_private_msg(user_id=int(user_id), message=reply_to_inviter)
+                except Exception as e:
+                    logger.error(f"无法向邀请者 {user_id} 发送黑名单提示: {e}")
+            else:
+                notice_to_admin = (
+                    f"【收到群邀请】同意吗：\n"
+                    f"邀请人昵称：{nickname}\n"
+                    f"邀请人QQ：{user_id}\n"
+                    f"群名称：{group_name}\n"
+                    f"群号：{group_id}\n"
+                    f"flag：{flag}\n"
+                    f"验证信息：{comment}"
+                )
+                await self.send_reply(client, notice_to_admin)
+        
+        # 只有在邀请的群不是黑名单群的情况下，才向已是好友的用户发送“等待审批”的通用提示
+        if not self.is_group_in_blacklist(group_id):
+            friend_list: list[dict] = await client.get_friend_list()
+            friend_ids: list[int] = [f["user_id"] for f in friend_list]
+            if user_id in friend_ids:
+                reply = (
+                    f"想加好友或拉群？要等审核们审批哟"
+                    if self.manage_group
+                    else "想加好友或拉群？要等审核审批哟"
+                )
+                try:
+                    await client.send_private_msg(user_id=int(user_id), message=reply)
+                except Exception as e:
+                    logger.error(f"无法反馈用户：{e}")
+
 
     @filter.permission_type(PermissionType.ADMIN)
     @filter.command("同意")
@@ -249,9 +256,7 @@ class Relationship(Star):
     async def approve(
         event: AiocqhttpMessageEvent, extra: str = "", approve: bool = True
     ) -> str:
-        """
-        审批处理主函数，根据消息内容自动识别审批类型（好友/群邀请）并处理
-        """
+        """处理好友申请或群邀请的主函数"""
         text = ""
         chain = event.get_messages()
         reply_seg = next((seg for seg in chain if isinstance(seg, Comp.Reply)), None)
@@ -284,7 +289,7 @@ class Relationship(Star):
                 except:  # noqa: E722
                     reply = "这条申请处理过了或者格式不对"
 
-        elif "【收到群邀请】" in text and len(lines) >= 7:
+        elif ("【收到群邀请】" in text or "【收到群邀请 - ⚠️黑名单警告】" in text) and len(lines) >= 7:
             group_name = lines[3].split("：")[1]  # 第4行冒号后文本为nickname
             gid = lines[4].split("：")[1]  # 第5行冒号后文本为use_id
             flag = lines[5].split("：")[1]  # 第6行冒号后文本为flag
@@ -363,7 +368,7 @@ class Relationship(Star):
                     task = self.scheduled_checks.pop(group_id_str)
                     task.cancel()
                     logger.info(f"机器人因禁言超期决定退群 {group_id}，已取消为其安排的延迟抽查任务。")
-                if group_id not in self.group_blacklist:
+                if not self.is_group_in_blacklist(group_id):
                     self.group_blacklist.append(group_id)
                     self.config.save_config()
                     logger.info(f"群聊 {group_id} 已因禁言超期被加入黑名单。")
@@ -400,7 +405,7 @@ class Relationship(Star):
             
             # --- 增加了查重判断 ---
             # 先判断群是否已在黑名单中
-            if group_id not in self.group_blacklist:
+            if not self.is_group_in_blacklist(group_id):
                 # 如果不在，才执行添加和保存的操作
                 self.group_blacklist.append(group_id)
                 self.config.save_config()
@@ -437,7 +442,7 @@ class Relationship(Star):
             common_ids: set[str] = set(member_ids) & mutual_blacklist_set
 
             # 检查1：如果群在黑名单里，则退群
-            if group_id in self.group_blacklist:
+            if self.is_group_in_blacklist(group_id):
                 await self.send_reply(
                     client, f"群聊 {group_name}({group_id}) 在黑名单里，我退群了"
                 )
@@ -653,3 +658,7 @@ class Relationship(Star):
         except Exception as e:
             logger.exception(e)
             yield event.plain_result(f"抽查ID({target_id})消息失败: {e}")
+
+    def is_group_in_blacklist(self, group_id) -> bool:
+        # 检查黑名单时兼容字符串和数字
+        return any(str(group_id) == str(gid) for gid in self.group_blacklist)
