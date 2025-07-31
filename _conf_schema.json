@@ -36,5 +36,23 @@
         "type": "bool",
         "hint": "开启后，每次触发群管理事件时，bot会自动抽查对应群的聊天记录",
         "default": true
+    },
+    "new_group_check_delay": {
+        "description": "新群延迟抽查时间（秒）",
+        "type": "int",
+        "hint": "机器人被拉入新群后，等待多少秒再执行自动抽查。默认600秒（10分钟）。",
+        "default": 600
+    },
+    "default_check_count": {
+        "description": "默认抽查条数",
+        "type": "int",
+        "hint": "当使用 /抽查 指令不指定条数时，默认获取的消息数量。推荐值：20",
+        "default": 20
+    },
+    "max_check_count": {
+        "description": "最大抽查条数",
+        "type": "int",
+        "hint": "为防止滥用，单次 /抽查 指令可获取的最大消息数量。推荐值：100",
+        "default": 100
     }
 }
