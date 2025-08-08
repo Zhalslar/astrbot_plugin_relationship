@@ -1,6 +1,6 @@
 name: astrbot_plugin_relationship # 这是你的插件的唯一识别名。
 desc: [仅aiocqhttp] bot人际关系管理器！包括查看好友列表、查看群列表、审批好友申请、审批群邀请、删好友、退群  # 插件简短描述
 help: 指令：/好友列表  /群列表  # 插件的帮助信息
-version: v2.0.0 # 插件版本号。格式：v1.1.1 或者 v1.1
+version: v2.0.1 # 插件版本号。格式：v1.1.1 或者 v1.1
 author: Zhalslar # 作者
 repo: https://github.com/Zhalslar/astrbot_plugin_relationship # 插件的仓库地址

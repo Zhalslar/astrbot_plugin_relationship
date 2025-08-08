@@ -1,5 +1,4 @@
 import asyncio
-from typing import Dict
 from aiocqhttp import CQHttp
 from astrbot import logger
 from astrbot.api.event import filter
@@ -11,13 +10,14 @@ from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
 )
 from astrbot.core.star.filter.permission import PermissionType
 from astrbot.core.star.filter.platform_adapter_type import PlatformAdapterType
+from .utils import convert_duration_advanced, get_reply_text, get_user_name, get_at_id
 
 
 @register(
     "astrbot_plugin_relationship",
     "Zhalslar",
     "[仅aiocqhttp] 人际关系管理器",
-    "v2.0.0",
+    "v2.0.1",
     "https://github.com/Zhalslar/astrbot_plugin_relationship",
 )
 class Relationship(Star):
@@ -27,9 +27,7 @@ class Relationship(Star):
         # 管理群ID，审批信息会发到此群
         self.manage_group: int = config.get("manage_group", 0)
         # 管理员QQ号列表，审批信息会私发给这些人
-        self.admins_id: list[str] = context.get_config().get("admins_id", [])
-        self.admins_id.extend(config.get("admins_id", []))
-        self.admins_id = list(set(self.admins_id))
+        self.admins_id: list[str] = list(set(context.get_config().get("admins_id", [])))
         # 最大允许禁言时长，超过自动退群
         self.max_ban_duration: int = config.get("max_ban_duration", 86400)
         # 群聊黑名单，bot不会再加入这些群
@@ -42,48 +40,10 @@ class Relationship(Star):
         self.auto_check_messages: bool = config.get("auto_check_messages", False)
         # 新群延迟抽查时间（秒）
         self.new_group_check_delay: int = config.get("new_group_check_delay", 600)
-        # 延迟抽查任务调度表
-        self.scheduled_checks: Dict[str, asyncio.Task] = {}
-        self.default_check_count: int = config.get("default_check_count", 20)
-        self.max_check_count: int = config.get("max_check_count", 100)
 
-    @staticmethod
-    def convert_duration_advanced(duration: int) -> str:
-        """
-        将秒数转换为更友好的时长字符串，如“1天2小时3分钟4秒”
-        """
-        if duration < 0:
-            return "未知时长"
-        if duration == 0:
-            return "0秒"
-        days, rem = divmod(duration, 86400)
-        hours, rem = divmod(rem, 3600)
-        minutes, seconds = divmod(rem, 60)
-        if days > 0 and hours == 0 and minutes == 0 and seconds == 0:
-            return f"{days}天"
-        if days == 0 and hours > 0 and minutes == 0 and seconds == 0:
-            return f"{hours}小时"
-        if days == 0 and hours == 0 and minutes > 0 and seconds == 0:
-            return f"{minutes}分钟"
-        parts = []
-        if days > 0:
-            parts.append(f"{days}天")
-        if hours > 0:
-            parts.append(f"{hours}小时")
-        if minutes > 0:
-            parts.append(f"{minutes}分钟")
-        if seconds > 0:
-            parts.append(f"{seconds}秒")
-        return "".join(parts)
-
-    async def get_user_name(self, client: CQHttp, group_id: int, user_id: int):
-        """
-        获取群成员的昵称或群名片
-        """
-        user_info = await client.get_group_member_info(
-            group_id=group_id, user_id=user_id
-        )
-        return user_info.get("card") or user_info.get("nickname")
+    def is_group_in_blacklist(self, group_id) -> bool:
+        # 检查黑名单时兼容字符串和数字
+        return any(str(group_id) == str(gid) for gid in self.group_blacklist)
 
     @filter.permission_type(PermissionType.ADMIN)
     @filter.command("群列表")
@@ -148,10 +108,7 @@ class Relationship(Star):
         """
         管理员命令：删除指定好友（可@或输入QQ号）
         """
-        chain = event.get_messages()
-        target_id: int = input_id or next(
-            (int(seg.qq) for seg in chain if isinstance(seg, Comp.At)), 0
-        )
+        target_id: int | None = get_at_id(event) or input_id
         if not target_id:
             yield event.plain_result("请 @ 要删除的好友或提供其QQ号。")
             return
@@ -164,11 +121,13 @@ class Relationship(Star):
             return
 
         await client.delete_friend(user_id=target_id)
-        yield event.plain_result(f"已删除好友：{target_id}")
+        yield event.plain_result(
+            f"已删除好友：{await get_user_name(client=client, user_id=target_id)}({target_id})"
+        )
 
     @filter.platform_adapter_type(PlatformAdapterType.AIOCQHTTP)
     async def event_monitoring(self, event: AiocqhttpMessageEvent):
-        """监听好友申请或群邀请 (增加黑名单预警和优化的用户反馈)"""
+        """监听好友申请或群邀请"""
         raw_message = getattr(event.message_obj, "raw_message", None)
         if (
             not isinstance(raw_message, dict)
@@ -200,53 +159,33 @@ class Relationship(Star):
                 "group_name"
             ] or "未知群名"
 
-            # 在通知审核员前，先检查是否为黑名单群
+            notice_to_admin = (
+                f"【收到群邀请】\n"
+                f"邀请人昵称：{nickname}\n"
+                f"邀请人QQ：{user_id}\n"
+                f"群名称：{group_name}\n"
+                f"群号：{group_id}\n"
+                f"flag：{flag}\n"
+                f"验证信息：{comment}\n"
+            )
             if self.is_group_in_blacklist(group_id):
-                notice_to_admin = (
-                    f"【收到群邀请 - ⚠️黑名单警告】\n"
-                    f"邀请人昵称：{nickname}\n"
-                    f"邀请人QQ：{user_id}\n"
-                    f"群名称：{group_name}\n"
-                    f"群号：{group_id}\n"
-                    f"flag：{flag}\n"
-                    f"验证信息：{comment}\n"
-                    f"❗警告: 该群为黑名单群聊，请谨慎通过。如审核通过，进群后将不会触发自动退群。"
-                )
-                await self.send_reply(client, notice_to_admin)
+                notice_to_admin += "❗警告: 该群为黑名单群聊，请谨慎通过，若通过则自动移出黑名单"
 
-                reply_to_inviter = "⚠️该群已被列入黑名单，可能不会通过审核。"
-                try:
-                    await client.send_private_msg(
-                        user_id=int(user_id), message=reply_to_inviter
-                    )
-                except Exception as e:
-                    logger.error(f"无法向邀请者 {user_id} 发送黑名单提示: {e}")
-            else:
-                notice_to_admin = (
-                    f"【收到群邀请】同意吗：\n"
-                    f"邀请人昵称：{nickname}\n"
-                    f"邀请人QQ：{user_id}\n"
-                    f"群名称：{group_name}\n"
-                    f"群号：{group_id}\n"
-                    f"flag：{flag}\n"
-                    f"验证信息：{comment}"
-                )
-                await self.send_reply(client, notice_to_admin)
+            reply_to_inviter = (
+                "想加好友或拉群？要等审核们审批哟"
+                if self.manage_group
+                else "想加好友或拉群？要等审核审批哟"
+            )
+            if self.is_group_in_blacklist(group_id):
+                reply_to_inviter += "\n⚠️该群已被列入黑名单，可能不会通过审核。"
 
-        # 只有在邀请的群不是黑名单群的情况下，才向已是好友的用户发送“等待审批”的通用提示
-        if not self.is_group_in_blacklist(group_id):
-            friend_list: list[dict] = await client.get_friend_list() # type: ignore
-            friend_ids: list[int] = [f["user_id"] for f in friend_list]
-            if user_id in friend_ids:
-                reply = (
-                    "想加好友或拉群？要等审核们审批哟"
-                    if self.manage_group
-                    else "想加好友或拉群？要等审核审批哟"
+            await self.send_reply(client, notice_to_admin)
+            try:
+                await client.send_private_msg(
+                    user_id=int(user_id), message=reply_to_inviter
                 )
-                try:
-                    await client.send_private_msg(user_id=int(user_id), message=reply)
-                except Exception as e:
-                    logger.error(f"无法反馈用户：{e}")
+            except Exception as e:
+                logger.error(f"无法向邀请者 {user_id} 发送提示: {e}")
 
     @filter.permission_type(PermissionType.ADMIN)
     @filter.command("同意")
@@ -255,7 +194,8 @@ class Relationship(Star):
         管理员命令：同意好友申请或群邀请
         """
         reply = await self.approve(event=event, extra=extra, approve=True)
-        yield event.plain_result(reply)
+        if reply:
+            yield event.plain_result(reply)
 
     @filter.permission_type(PermissionType.ADMIN)
     @filter.command("拒绝")
@@ -267,21 +207,16 @@ class Relationship(Star):
         if reply:
             yield event.plain_result(reply)
 
-    @staticmethod
+
     async def approve(
-        event: AiocqhttpMessageEvent, extra: str = "", approve: bool = True
-    ) -> str:
+        self, event: AiocqhttpMessageEvent, extra: str = "", approve: bool = True
+    ) -> str | None:
         """处理好友申请或群邀请的主函数"""
-        text = ""
-        chain = event.get_messages()
-        reply_seg = next((seg for seg in chain if isinstance(seg, Comp.Reply)), None)
-        if reply_seg and reply_seg.chain:
-            for seg in reply_seg.chain:
-                if isinstance(seg, Comp.Plain):
-                    text = seg.text
+        text = get_reply_text(event)
+        if not text:
+            return "需引用一条好友申请或群邀请"
         lines = text.split("\n")
         client = event.bot
-        reply = ""
         if "【收到好友申请】" in text and len(lines) >= 5:
             nickname = lines[1].split("：")[1]  # 第2行冒号后文本为nickname
             uid = lines[2].split("：")[1]  # 第3行冒号后文本为uid
@@ -289,46 +224,44 @@ class Relationship(Star):
             friend_list = await client.get_friend_list()
             uids = [str(f["user_id"]) for f in friend_list]
             if uid in uids:
-                reply = f"【{nickname}】已经是我的好友啦"
-            else:
-                try:
-                    await client.set_friend_add_request(
-                        flag=flag, approve=approve, remark=extra
-                    )
-                    if approve:
-                        reply = f"已同意好友：{nickname}" + (
-                            f"\n并备注为：{extra}" if extra else ""
-                        )
-                    else:
-                        reply = f"已拒绝好友：{nickname}"
-                except:  # noqa: E722
-                    reply = "这条申请处理过了或者格式不对"
+                return f"【{nickname}】已经是我的好友啦"
 
-        elif (
-            "【收到群邀请】" in text or "【收到群邀请 - ⚠️黑名单警告】" in text
-        ) and len(lines) >= 7:
+            try:
+                await client.set_friend_add_request(
+                    flag=flag, approve=approve, remark=extra
+                )
+                if not approve:
+                    return f"已拒绝好友：{nickname}"
+                return f"已同意好友：{nickname}" + (
+                    f"\n并备注为：{extra}" if extra else ""
+                )
+
+            except:  # noqa: E722
+                return "这条申请处理过了或者格式不对"
+
+        elif "【收到群邀请】" in text and len(lines) >= 7:
             group_name = lines[3].split("：")[1]  # 第4行冒号后文本为nickname
             gid = lines[4].split("：")[1]  # 第5行冒号后文本为use_id
             flag = lines[5].split("：")[1]  # 第6行冒号后文本为flag
             group_list = await client.get_group_list()
             gids = [str(f["group_id"]) for f in group_list]
             if gid in gids:
-                reply = f"我已经在【{group_name}】里啦"
-            else:
-                try:
-                    await client.set_group_add_request(
-                        flag=flag, sub_type="invite", approve=approve, reason=extra
-                    )
-                    if approve:
-                        reply = f"已同意群邀请: {group_name}"
-                    else:
-                        reply = f"已拒绝群邀请: {group_name}" + (
-                            f"\n理由：{extra}" if extra else ""
-                        )
-                except:  # noqa: E722
-                    reply = "这条申请处理过了或者格式不对"
+                return f"我已经在【{group_name}】里啦"
 
-        return reply
+            try:
+                if approve:
+                    self.group_blacklist.remove(gid)
+                await client.set_group_add_request(
+                    flag=flag, sub_type="invite", approve=approve, reason=extra
+                )
+                if approve:
+                    return f"已同意群邀请: {group_name}"
+                else:
+                    return f"已拒绝群邀请: {group_name}" + (
+                        f"\n理由：{extra}" if extra else ""
+                    )
+            except:  # noqa: E722
+                return "这条申请处理过了或者格式不对"
 
     @filter.event_message_type(filter.EventMessageType.GROUP_MESSAGE)
     async def on_notice(self, event: AiocqhttpMessageEvent):
@@ -353,10 +286,9 @@ class Relationship(Star):
         operator_id = raw_message.get("operator_id", 0)
         if operator_id == int(self_id):
             return
-        if operator_id == 0:
-            operator_name = "未知"
-        else:
-            operator_name = await self.get_user_name(client, group_id, operator_id)
+        operator_name = await get_user_name(
+            client, user_id=operator_id, group_id=group_id
+        )
 
         # 群管理员变动
         if raw_message.get("notice_type") == "group_admin":
@@ -370,9 +302,7 @@ class Relationship(Star):
                 )
 
             if self.auto_check_messages:
-                await self.check_messages(
-                    client=client, target_id=str(group_id), is_automated=True
-                )
+                await self.check_messages(client, group_id=group_id)
             event.stop_event()
 
         # 群禁言事件
@@ -386,38 +316,18 @@ class Relationship(Star):
             else:
                 await self.send_reply(
                     client,
-                    f"呜呜ww..我在 {group_name}({group_id}) 被 {operator_name} 禁言了{self.convert_duration_advanced(duration)}",
+                    f"呜呜ww..我在 {group_name}({group_id}) 被 {operator_name} 禁言了{convert_duration_advanced(duration)}",
                 )
+            if self.auto_check_messages:
+                await self.check_messages(client, group_id=group_id)
 
             if duration > self.max_ban_duration:
-                group_id_str = str(group_id)
-                if group_id_str in self.scheduled_checks:
-                    task = self.scheduled_checks.pop(group_id_str)
-                    task.cancel()
-                    logger.info(
-                        f"机器人因禁言超期决定退群 {group_id}，已取消为其安排的延迟抽查任务。"
-                    )
-                if not self.is_group_in_blacklist(group_id):
-                    self.group_blacklist.append(group_id)
-                    self.config.save_config()
-                    logger.info(f"群聊 {group_id} 已因禁言超期被加入黑名单。")
-
                 await self.send_reply(
                     client,
-                    f"禁言时间超过{self.convert_duration_advanced(self.max_ban_duration)}，我已将此群拉黑并退群了",
+                    f"禁言时间超过{convert_duration_advanced(self.max_ban_duration)}，我退群了",
                 )
-
                 if self.auto_check_messages:
-                    logger.info(
-                        f"因禁言超期退群，正在对群聊 {group_id} 执行最后一次抽查..."
-                    )
-                    try:
-                        await self.check_messages(
-                            client=client, target_id=str(group_id), is_automated=True
-                        )
-                    except Exception as e:
-                        logger.error(f"退群前的最后抽查失败: {e}")
-
+                    await self.check_messages(client, group_id=group_id)
                 await asyncio.sleep(3)
                 await client.set_group_leave(group_id=group_id)
 
@@ -428,14 +338,6 @@ class Relationship(Star):
             raw_message.get("notice_type") == "group_decrease"
             and raw_message.get("sub_type") == "kick_me"
         ):
-            group_id_str = str(group_id)
-            if group_id_str in self.scheduled_checks:
-                task = self.scheduled_checks.pop(group_id_str)
-                task.cancel()
-                logger.info(
-                    f"机器人被踢出群 {group_id}，已取消为其安排的延迟抽查任务。"
-                )
-
             if not self.is_group_in_blacklist(group_id):
                 self.group_blacklist.append(group_id)
                 self.config.save_config()
@@ -445,9 +347,7 @@ class Relationship(Star):
             await self.send_reply(client, reply)
 
             if self.auto_check_messages:
-                await self.check_messages(
-                    client=client, target_id=str(group_id), is_automated=True
-                )
+                await self.check_messages(client, group_id=group_id)
             event.stop_event()
 
         # 群成员增加事件 (被邀请)
@@ -455,11 +355,11 @@ class Relationship(Star):
             raw_message.get("notice_type") == "group_increase"
             and raw_message.get("sub_type") == "invite"
         ):
-            delay_str = self.convert_duration_advanced(self.new_group_check_delay)
+            delay_str = convert_duration_advanced(self.new_group_check_delay)
             await self.send_reply(
                 client,
                 f"主人..我被 {operator_name} 拉进了 {group_name}({group_id})。\n"
-                f"将在 {delay_str} 后自动抽查近期消息。",
+                f"我将在{delay_str}后抽查该群消息",
             )
 
             # 获取当前群列表
@@ -477,7 +377,7 @@ class Relationship(Star):
                 await self.send_reply(
                     client, f"群聊 {group_name}({group_id}) 在黑名单里，我退群了"
                 )
-                yield event.plain_result("本群在我的黑名单里，我退了")
+                yield event.plain_result("把我踢了还想要我回来？退了退了")
                 await asyncio.sleep(3)
                 await client.set_group_leave(group_id=group_id)
 
@@ -496,7 +396,9 @@ class Relationship(Star):
             # 检查3：如果群内存在互斥成员，则退群
             elif common_ids:
                 user_id = common_ids.pop()  # 获取一个互斥成员
-                member_name = await self.get_user_name(client, group_id, int(user_id))
+                member_name = await get_user_name(
+                    client, user_id=int(user_id), group_id=group_id
+                )
                 await self.send_reply(
                     client,
                     f"检测到群内存在互斥成员 {member_name}({user_id})，这群我退了",
@@ -507,62 +409,9 @@ class Relationship(Star):
                 await asyncio.sleep(3)
                 await client.set_group_leave(group_id=group_id)
 
-            # 自动抽查新群消息（延迟）
             if self.auto_check_messages:
-                group_id_str = str(group_id)
-
-                if group_id_str in self.scheduled_checks:
-                    logger.info(
-                        f"群 {group_id_str} 已有一个正在等待的抽查任务，忽略本次重复的入群事件。"
-                    )
-                else:
-
-                    async def _delayed_check():
-                        logger.info(
-                            f"等待 {self.new_group_check_delay} 秒后，开始对新群 {group_id_str} 进行抽查..."
-                        )
-                        await asyncio.sleep(self.new_group_check_delay)
-
-                        if group_id_str not in self.scheduled_checks:
-                            logger.info(
-                                f"群 {group_id_str} 的延迟抽查任务已被取消，不再执行。"
-                            )
-                            return
-
-                        try:
-                            # 再次检查机器人是否还在群里，避免报错
-                            current_group_list = await client.get_group_list()
-                            if not any(
-                                str(g["group_id"]) == group_id_str
-                                for g in current_group_list
-                            ):
-                                logger.warning(
-                                    f"执行延迟抽查时发现，机器人已不在群聊 {group_id_str} 中，任务中止。"
-                                )
-                                return
-
-                            success = await self.check_messages(
-                                client=client, target_id=group_id_str, is_automated=True
-                            )
-
-                            if not success:
-                                report_message = "抽查失败，诶，没有消息么……？"
-                                await self.send_reply(client, report_message)
-
-                        except Exception as e:
-                            logger.error(
-                                f"执行对新群 {group_id_str} 的延迟抽查时出错: {e}"
-                            )
-                            error_report_message = f"❌ 对新群 {group_name}({group_id_str}) 的延迟抽查任务执行失败，详情请查看后台日志。"
-                            await self.send_reply(client, error_report_message)
-                        finally:
-                            self.scheduled_checks.pop(group_id_str, None)
-
-                    task = asyncio.create_task(_delayed_check())
-                    self.scheduled_checks[group_id_str] = task
-                    logger.info(
-                        f"已为新群 {group_id_str} 安排了一个 {self.new_group_check_delay} 秒后的延迟抽查任务。"
-                    )
+                await asyncio.sleep(self.new_group_check_delay)
+                await self.check_messages(client, group_id=group_id)
 
             event.stop_event()
 
@@ -596,54 +445,32 @@ class Relationship(Star):
     async def check_messages(
         self,
         client: CQHttp,
-        target_id: int | str,
-        reply_to_group: int | str | None = None,
-        reply_to_user: int | str | None = None,
-        is_automated: bool = False,
-        count: int = 20,
+        group_id: int | str = 0,
+        user_id: int | str = 0,
+        count: int  = 20,
+        reply_group_id: int | str = 0,
+        reply_user_id: int | str = 0,
     ) -> bool:
         """
         抽查消息
         """
-        if count > self.max_check_count:
-            count = self.max_check_count
-
         result = None
-        if is_automated:
-            try:
-                result = await client.get_group_msg_history(
-                    group_id=int(target_id), count=count
-                )
-            except Exception as e:
-                logger.warning(
-                    f"自动抽查群 {target_id} 失败，可能因为机器人已不在群内。错误: {e}"
-                )
-                return False
-        else:
-            is_group, is_friend = False, False
-            group_list = await client.get_group_list()
-            if any(str(g["group_id"]) == str(target_id) for g in group_list):
-                is_group = True
-            else:
-                friend_list = await client.get_friend_list()
-                if any(str(f["user_id"]) == str(target_id) for f in friend_list):
-                    is_friend = True
+        if group_id:
+            result = await client.get_group_msg_history(
+                group_id=int(group_id), count=count
+            )
+        elif user_id:
+            result = await client.get_friend_msg_history(
+                user_id=int(user_id), count=count
+            )
 
-            if is_group:
-                result = await client.get_group_msg_history(
-                    group_id=int(target_id), count=count
-                )
-            elif is_friend:
-                result = await client.get_friend_msg_history(
-                    user_id=int(target_id), count=count
-                )
-            else:
-                raise ValueError(f"ID {target_id} 既不是群聊也不是好友")
-
-        if not result or not result.get("messages"):
+        if not result:
             return False
 
         messages: list[dict] = result.get("messages", [])
+
+        if not messages:
+            return False
 
         # 构造转发节点
         nodes = []
@@ -659,11 +486,13 @@ class Relationship(Star):
             nodes.append(node)
 
         # 按优先级转发到目标
-        if reply_to_group:
-            await client.send_group_forward_msg(group_id=int(reply_to_group), messages=nodes)
-        elif reply_to_user:
+        if reply_group_id:
+            await client.send_group_forward_msg(
+                group_id=int(reply_group_id), messages=nodes
+            )
+        elif reply_user_id:
             await client.send_private_forward_msg(
-                user_id=int(reply_to_user), messages=nodes
+                user_id=int(reply_user_id), messages=nodes
             )
         elif self.manage_group:
             await client.send_group_forward_msg(
@@ -682,30 +511,24 @@ class Relationship(Star):
     async def check_messages_handle(
         self,
         event: AiocqhttpMessageEvent,
-        target_id: int | None = None,
-        count_str: int | None = None,
+        group_id: int | None = None,
+        count: int = 20,
     ):
         """
         抽查指定群聊的消息
         """
-        if not target_id:
+        if not group_id:
             yield event.plain_result("未指定群号")
             return
-        final_count = count_str if count_str and 0<= count_str <= self.max_check_count else self.default_check_count
-
         try:
             await self.check_messages(
                 client=event.bot,
-                target_id=target_id,
-                reply_to_group=event.get_group_id(),
-                reply_to_user=event.get_sender_id(),
-                count=final_count,
+                group_id=group_id,
+                reply_group_id=event.get_group_id(),
+                reply_user_id=event.get_sender_id(),
+                count=count,
             )
             event.stop_event()
         except Exception as e:
-            logger.exception(e)
-            yield event.plain_result(f"抽查ID({target_id})消息失败: {e}")
-
-    def is_group_in_blacklist(self, group_id) -> bool:
-        # 检查黑名单时兼容字符串和数字
-        return any(str(group_id) == str(gid) for gid in self.group_blacklist)
+            logger.error(f"抽查群({group_id})消息失败: {e}")
+            yield event.plain_result(f"抽查群({group_id})消息失败: {e}")

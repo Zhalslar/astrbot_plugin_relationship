@@ -17,8 +17,7 @@ _✨ [astrbot](https://github.com/AstrBotDevs/AstrBot) 人际关系管理器 ✨
 ## 💡 介绍
 
 为astrbot提供的一个人际关系管理器！功能包括查看好友列表、查看群列表、审批好友申请、审批群邀请、删好友、退群，方便用户管理bot的人际关系。
-- 1.0.6后新增进群退群、管理员变动、禁言通知，并能抽查对应群聊记录，方便管理bot加的群。
-- 2.0.0版本被邀请进群可以延时抽查聊天记录，且抽查功能可以用于私聊，修复了删好友命令失效的问题。
+1.0.6后新增进群退群、管理员变动、禁言通知，并能抽查对应群聊记录，方便管理bot加的群。
 
 ## 📦 安装
 
@@ -55,7 +54,6 @@ git clone https://github.com/Zhalslar/astrbot_plugin_relationship
 ## 示例图
 
 ![download](https://github.com/user-attachments/assets/656ee439-a215-4aae-8ddd-96fad9067e6a)
-
 
 ## 🤝 TODO
 

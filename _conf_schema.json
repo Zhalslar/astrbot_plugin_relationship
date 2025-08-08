@@ -4,11 +4,6 @@
         "type": "string",
         "hint": "bot收到的好友申请、群邀请在管理群里审批，不填则将审批信息私发给bot管理员"
     },
-    "admins_id": {
-        "description": "管理员列表",
-        "type": "list",
-        "hint": "管理员列表，已自动从全局配置中获取（若填写则与全局管理员列表合并）"
-    },
     "max_ban_duration": {
         "description": "允许的最大禁言时间",
         "type": "int",
@@ -40,19 +35,7 @@
     "new_group_check_delay": {
         "description": "新群延迟抽查时间（秒）",
         "type": "int",
-        "hint": "机器人被拉入新群后，等待多少秒再执行自动抽查。默认600秒（10分钟）。",
-        "default": 600
-    },
-    "default_check_count": {
-        "description": "默认抽查条数",
-        "type": "int",
-        "hint": "当使用 /抽查 指令不指定条数时，默认获取的消息数量。推荐值：20",
-        "default": 20
-    },
-    "max_check_count": {
-        "description": "最大抽查条数",
-        "type": "int",
-        "hint": "为防止滥用，单次 /抽查 指令可获取的最大消息数量。推荐值：100",
-        "default": 100
+        "hint": "机器人被拉入新群后，等待多少秒再执行自动抽查",
+        "default": 30
     }
 }
