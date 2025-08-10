@@ -166,7 +166,7 @@ class Relationship(Star):
                 f"群名称：{group_name}\n"
                 f"群号：{group_id}\n"
                 f"flag：{flag}\n"
-                f"验证信息：{comment}\n"
+                f"验证信息：{comment}"
             )
             if self.is_group_in_blacklist(group_id):
                 notice_to_admin += "❗警告: 该群为黑名单群聊，请谨慎通过，若通过则自动移出黑名单"
