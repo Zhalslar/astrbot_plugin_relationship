@@ -2,7 +2,6 @@ import asyncio
 from aiocqhttp import CQHttp
 from astrbot import logger
 from astrbot.api.event import filter
-import astrbot.api.message_components as Comp
 from astrbot.api.star import Context, Star, register
 from astrbot.core.config.astrbot_config import AstrBotConfig
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
@@ -17,7 +16,7 @@ from .utils import convert_duration_advanced, get_reply_text, get_user_name, get
     "astrbot_plugin_relationship",
     "Zhalslar",
     "[仅aiocqhttp] 人际关系管理器",
-    "v2.0.1",
+    "v2.0.2",
     "https://github.com/Zhalslar/astrbot_plugin_relationship",
 )
 class Relationship(Star):
@@ -160,16 +159,18 @@ class Relationship(Star):
             ] or "未知群名"
 
             notice_to_admin = (
-                f"【收到群邀请】\n"
+                f"【收到群邀请】同意吗\n"
                 f"邀请人昵称：{nickname}\n"
                 f"邀请人QQ：{user_id}\n"
                 f"群名称：{group_name}\n"
                 f"群号：{group_id}\n"
                 f"flag：{flag}\n"
-                f"验证信息：{comment}\n"
+                f"验证信息：{comment}"
             )
             if self.is_group_in_blacklist(group_id):
-                notice_to_admin += "❗警告: 该群为黑名单群聊，请谨慎通过，若通过则自动移出黑名单"
+                notice_to_admin += (
+                    "\n❗警告: 该群为黑名单群聊，请谨慎通过，若通过则自动移出黑名单"
+                )
 
             reply_to_inviter = (
                 "想加好友或拉群？要等审核们审批哟"
@@ -249,7 +250,7 @@ class Relationship(Star):
                 return f"我已经在【{group_name}】里啦"
 
             try:
-                if approve:
+                if approve and gid in self.group_blacklist:
                     self.group_blacklist.remove(gid)
                 await client.set_group_add_request(
                     flag=flag, sub_type="invite", approve=approve, reason=extra
