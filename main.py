@@ -99,12 +99,12 @@ class RelationshipPlugin(Star):
         client = event.bot
         group_list = await client.get_group_list()
 
-        group_ids = [int(group["group_id"]) for group in group_list]
-        if group_id not in group_ids:
+        group_ids = [str(group["group_id"]) for group in group_list]
+        if str(group_id) not in group_ids:
             yield event.plain_result("我没加有这个群")
             return
 
-        await client.set_group_leave(group_id=group_id)
+        await client.set_group_leave(group_id=int(group_id))
         yield event.plain_result(f"已退出群聊：{group_id}")
 
     @filter.permission_type(PermissionType.ADMIN)
@@ -118,7 +118,7 @@ class RelationshipPlugin(Star):
 
         client = event.bot
         friend_list = await client.get_friend_list()
-        friend_ids = [int(friend["user_id"]) for friend in friend_list]
+        friend_ids = [str(friend["user_id"]) for friend in friend_list]
 
         msgs = []
         for target_id in target_ids:
