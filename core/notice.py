@@ -1,4 +1,3 @@
-import asyncio
 
 from aiocqhttp import CQHttp
 
@@ -18,9 +17,9 @@ async def handle_notice(
     operator_reply = ""
     delay_check = False
     leave_group = False
-    user_id = raw_message.get("user_id", 0)
-    group_id = raw_message.get("group_id", 0)
-    group_info = await client.get_group_info(group_id=group_id)
+    user_id = str(raw_message.get("user_id", ""))
+    group_id = str(raw_message.get("group_id", ""))
+    group_info = await client.get_group_info(group_id=int(group_id))
     group_name = group_info.get("group_name")
     operator_id = raw_message.get("operator_id", 0)
     operator_name = await get_nickname(client, user_id=operator_id, group_id=group_id)
@@ -48,8 +47,7 @@ async def handle_notice(
         if duration > config["max_ban_duration"]:
             admin_reply += f"\n禁言时间超过{convert_duration_advanced(config['max_ban_duration'])}，我退群了"
             leave_group = True
-            await asyncio.sleep(3)
-            await client.set_group_leave(group_id=group_id)
+
 
     # 群成员减少事件 (被踢)
     elif (
@@ -75,7 +73,7 @@ async def handle_notice(
         # 互斥成员检查
         mutual_blacklist_set = set(config["mutual_blacklist"]).copy()
         mutual_blacklist_set.discard(str(user_id))
-        member_list = await client.get_group_member_list(group_id=group_id)
+        member_list = await client.get_group_member_list(group_id=int(group_id))
         member_ids: list[str] = [str(member["user_id"]) for member in member_list]
         common_ids: set[str] = set(member_ids) & mutual_blacklist_set
 
