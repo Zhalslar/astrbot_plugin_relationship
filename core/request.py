@@ -18,15 +18,11 @@ async def monitor_add_request(client: CQHttp, raw_message: dict, config: AstrBot
     comment: str = raw_message.get("comment") or "无"
     flag = raw_message.get("flag", "")
 
-    # afdian
-    afdian_approve = False
-    if _AFDIAN_OK and afdian_verify(remark=str(user_id)):
-        afdian_approve = True
-
     # 加好友事件
     if raw_message.get("request_type") == "friend":
         admin_reply = f"【收到好友申请】同意吗：\n昵称：{nickname}\nQQ号：{user_id}\nflag：{flag}\n验证信息：{comment}"
-        if _AFDIAN_OK and afdian_approve:
+        # Afdian_verify
+        if _AFDIAN_OK and afdian_verify(remark=str(user_id)):
             await client.set_friend_add_request(flag=flag, approve=True)
             admin_reply += "\nAfdian_verify: approved!"
 
@@ -53,7 +49,7 @@ async def monitor_add_request(client: CQHttp, raw_message: dict, config: AstrBot
             await client.set_group_add_request(
                 flag=flag, sub_type="invite", approve=True
             )
-            admin_reply += "\nAfdian_verify: approved!"
+            admin_reply += "\n爱发电验证已通过，已自动同意"
 
         else:
             if config["manager_group"]:

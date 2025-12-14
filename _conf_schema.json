@@ -1,5 +1,5 @@
 {
-    "manager_group": {
+    "manage_group": {
         "description": "管理群",
         "type": "string",
         "hint": "bot收到的好友申请、群邀请在管理群里审批，不填则将审批信息私发给bot管理员"
@@ -32,7 +32,7 @@
         "hint": "开启后，每次触发群管理事件时，bot会自动抽查对应群的聊天记录",
         "default": true
     },
-    "check_delay": {
+    "new_group_check_delay": {
         "description": "新群延迟抽查时间（秒）",
         "type": "int",
         "hint": "机器人被拉入新群后，等待多少秒再执行自动抽查",
