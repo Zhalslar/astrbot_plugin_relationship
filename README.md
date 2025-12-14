@@ -5,7 +5,7 @@
 
 # astrbot_plugin_relationship
 
-_✨ [astrbot](https://github.com/AstrBotDevs/AstrBot) 人际关系管理器 ✨_  
+_✨ 人际关系管理器 ✨_  
 
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
@@ -21,7 +21,7 @@ _✨ [astrbot](https://github.com/AstrBotDevs/AstrBot) 人际关系管理器 ✨
 
 ## 📦 安装
 
-- 可以直接在astrbot的插件市场搜索astrbot_plugin_QQProfile，点击安装即可  
+- 可以直接在astrbot的插件市场搜索astrbot_plugin_relationship，点击安装即可  
 
 - 或者可以直接克隆源码到插件文件夹：
 
@@ -35,7 +35,7 @@ git clone https://github.com/Zhalslar/astrbot_plugin_relationship
 
 ## ⚙️ 配置
 
-请在astrbot面板配置，插件管理 -> astrbot_plugin_memelite -> 操作 -> 插件配置
+请在astrbot面板配置，插件管理 -> astrbot_plugin_relationship -> 操作 -> 插件配置
 
 ## ⌨️ 使用说明
 
