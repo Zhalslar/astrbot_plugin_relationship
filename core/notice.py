@@ -234,7 +234,7 @@ class NoticeHandler:
     async def _check_mutual_blacklist(self, context: dict) -> bool:
         """检查群内是否存在互斥成员"""
         mutual_blacklist_set = set(self.config["mutual_blacklist"]).copy()
-        mutual_blacklist_set.discard(self.user_id)
+        mutual_blacklist_set.discard(str(self.user_id))
 
         member_list = await self.client.get_group_member_list(
             group_id=int(self.group_id)
