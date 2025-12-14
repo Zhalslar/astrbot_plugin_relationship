@@ -202,10 +202,28 @@ def parse_request_from_text(text: str) -> FriendRequest | GroupInvite | None:
     # 解析好友申请
     if "【好友申请】" in text and len(lines) >= 4:
         try:
-            nickname = lines[1].split("：", 1)[1]  # 第2行冒号后文本为nickname
-            user_id = lines[2].split("：", 1)[1]  # 第3行冒号后文本为user_id
-            flag = lines[3].split("：", 1)[1]  # 第4行冒号后文本为flag
-            comment = lines[4].split("：", 1)[1] if len(lines) >= 5 else "无"
+            # 解析各个字段，确保分割成功
+            parts = lines[1].split("：", 1)
+            if len(parts) < 2:
+                return None
+            nickname = parts[1]
+            
+            parts = lines[2].split("：", 1)
+            if len(parts) < 2:
+                return None
+            user_id = parts[1]
+            
+            parts = lines[3].split("：", 1)
+            if len(parts) < 2:
+                return None
+            flag = parts[1]
+            
+            # comment是可选的
+            comment = "无"
+            if len(lines) >= 5:
+                parts = lines[4].split("：", 1)
+                if len(parts) >= 2:
+                    comment = parts[1]
             
             return FriendRequest(
                 nickname=nickname,
@@ -219,12 +237,38 @@ def parse_request_from_text(text: str) -> FriendRequest | GroupInvite | None:
     # 解析群邀请
     elif "【群邀请】" in text and len(lines) >= 6:
         try:
-            inviter_nickname = lines[1].split("：", 1)[1]  # 第2行
-            inviter_id = lines[2].split("：", 1)[1]  # 第3行
-            group_name = lines[3].split("：", 1)[1]  # 第4行
-            group_id = lines[4].split("：", 1)[1]  # 第5行
-            flag = lines[5].split("：", 1)[1]  # 第6行
-            comment = lines[6].split("：", 1)[1] if len(lines) >= 7 else "无"
+            # 解析各个字段，确保分割成功
+            parts = lines[1].split("：", 1)
+            if len(parts) < 2:
+                return None
+            inviter_nickname = parts[1]
+            
+            parts = lines[2].split("：", 1)
+            if len(parts) < 2:
+                return None
+            inviter_id = parts[1]
+            
+            parts = lines[3].split("：", 1)
+            if len(parts) < 2:
+                return None
+            group_name = parts[1]
+            
+            parts = lines[4].split("：", 1)
+            if len(parts) < 2:
+                return None
+            group_id = parts[1]
+            
+            parts = lines[5].split("：", 1)
+            if len(parts) < 2:
+                return None
+            flag = parts[1]
+            
+            # comment是可选的
+            comment = "无"
+            if len(lines) >= 7:
+                parts = lines[6].split("：", 1)
+                if len(parts) >= 2:
+                    comment = parts[1]
             
             return GroupInvite(
                 inviter_nickname=inviter_nickname,
