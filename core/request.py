@@ -199,7 +199,7 @@ def parse_request_from_text(text: str) -> FriendRequest | GroupInvite | None:
     """
     lines = text.split("\n")
     
-    # 解析好友申请
+    # 解析好友申请 (最少需要4行：标题 + 昵称 + QQ号 + flag，验证信息是可选的)
     if "【好友申请】" in text and len(lines) >= 4:
         try:
             # 解析各个字段，确保分割成功
@@ -234,7 +234,7 @@ def parse_request_from_text(text: str) -> FriendRequest | GroupInvite | None:
         except (IndexError, ValueError):
             return None
     
-    # 解析群邀请
+    # 解析群邀请 (最少需要6行：标题 + 邀请人昵称 + 邀请人QQ + 群名称 + 群号 + flag，验证信息是可选的)
     elif "【群邀请】" in text and len(lines) >= 6:
         try:
             # 解析各个字段，确保分割成功
