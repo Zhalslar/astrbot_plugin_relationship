@@ -25,8 +25,8 @@ async def monitor_add_request(client: CQHttp, raw_message: dict, config: AstrBot
 
     # 加好友事件
     if raw_message.get("request_type") == "friend":
-        admin_reply = f"【收到好友申请】同意吗：\n昵称：{nickname}\nQQ号：{user_id}\nflag：{flag}\n验证信息：{comment}"
-        if _AFDIAN_OK and afdian_approve:
+        admin_reply = f"【好友申请】同意吗：\n昵称：{nickname}\nQQ号：{user_id}\nflag：{flag}\n验证信息：{comment}"
+        if afdian_approve:
             await client.set_friend_add_request(flag=flag, approve=True)
             admin_reply += "\nAfdian_verify: approved!"
 
@@ -96,7 +96,7 @@ async def handle_add_request(
         except:  # noqa: E722
             return "这条申请处理过了或者格式不对"
 
-    elif "【收到群邀请】" in info and len(lines) >= 6:
+    elif "【群邀请】" in info and len(lines) >= 6:
         group_name = lines[3].split("：")[1]  # 第4行冒号后文本为nickname
         gid = lines[4].split("：")[1]  # 第5行冒号后文本为use_id
         flag = lines[5].split("：")[1]  # 第6行冒号后文本为flag

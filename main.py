@@ -12,7 +12,7 @@ from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
 from astrbot.core.star.filter.permission import PermissionType
 from astrbot.core.star.filter.platform_adapter_type import PlatformAdapterType
 
-from .core.notice import handle_notice
+from .core.notice import NoticeHandler
 from .core.request import (
     handle_add_request,
     monitor_add_request,
@@ -192,11 +192,9 @@ class RelationshipPlugin(Star):
         ):
             client = event.bot
             # 处理通知
-            admin_reply, operator_reply, delay_check, leave_group = await handle_notice(
-                client=client,
-                raw_message=raw_message,
-                config=self.config,
-            )
+            handler = NoticeHandler(client, raw_message, self.config)
+            result = await handler.handle()
+            admin_reply, operator_reply, delay_check, leave_group = result
 
             if operator_reply:
                 yield event.plain_result(operator_reply)
@@ -248,6 +246,9 @@ class RelationshipPlugin(Star):
         # 未指定群号时，随机获取一个群号
         if not group_id:
             group_list = await client.get_group_list()
+            if not group_list:
+                yield event.plain_result("未找到可用的群聊，无法进行抽查")
+                return
             group_id = random.choice(group_list)["group_id"]
 
         try:

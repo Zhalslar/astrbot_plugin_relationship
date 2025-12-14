@@ -84,9 +84,19 @@ def get_ats(
     event: AiocqhttpMessageEvent,
     noself: bool = False,
     block_ids: list[str] | None = None,
+    skip_first_seg: bool = True,
 ):
-    """获取被at者们的id列表(@增强版)"""
-    ats = {str(seg.qq) for seg in event.get_messages()[1:] if isinstance(seg, At)}
+    """
+    获取被at者们的id列表(@增强版)
+    Args:
+        event: 消息事件对象
+        noself: 是否排除自己
+        block_ids: 要排除的id列表
+        skip_first_seg: 是否跳过第一个消息段（默认为True）
+    """
+    segs = event.get_messages()
+    segs = segs[1:] if skip_first_seg else segs
+    ats = {str(seg.qq) for seg in segs if isinstance(seg, At)}
     ats.update(
         arg[1:]
         for arg in event.message_str.split()
