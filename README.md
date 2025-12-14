@@ -33,6 +33,8 @@ git clone https://github.com/Zhalslar/astrbot_plugin_relationship
 # 控制台重启AstrBot
 ```
 
+> **⚠️ 重要提示**：如果遇到语法错误（SyntaxError），请确保更新到最新版本。v2.0.3 版本存在已知问题，已在 v2.2.0 中修复。建议使用最新的 main 分支或从插件市场重新安装。
+
 ## ⚙️ 配置
 
 请在astrbot面板配置，插件管理 -> astrbot_plugin_relationship -> 操作 -> 插件配置
