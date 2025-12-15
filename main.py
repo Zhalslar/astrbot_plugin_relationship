@@ -57,11 +57,13 @@ class RelationshipPlugin(Star):
         await event.send(event.plain_result(message))
 
     async def manage_source_forward(self, event: AiocqhttpMessageEvent):
+        """抽查消息发给审批群或审批员"""
         if self.manage_group or self.manage_user:
             fgid = int(self.manage_group) if self.manage_group.isdigit() else None
             fuid = int(self.manage_user) if self.manage_user.isdigit() else None
             await self.forward.source_forward(
                 client=event.bot,
+                count=self.config["msg_check_count"],
                 source_group_id=int(event.get_group_id()),
                 source_user_id=int(event.get_sender_id()),
                 forward_group_id=fgid,
@@ -126,8 +128,8 @@ class RelationshipPlugin(Star):
         self,
         event: AiocqhttpMessageEvent,
         group_id: int | None = None,
-        count: int = 20,
+        count: int = 0,
     ):
-        """抽查指定群聊的消息"""
+        """抽查 [群号|@群友|@QQ] [数量], 抽查聊天记录"""
         async for msg in self.forward.check_messages(event, group_id, count):
             yield msg

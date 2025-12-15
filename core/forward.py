@@ -10,12 +10,12 @@ from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
     AiocqhttpMessageEvent,
 )
 
-from .utils import get_reply_text
+from .utils import get_ats, get_reply_text
 
 
 class ForwardHandle:
     def __init__(self, config: AstrBotConfig):
-        self.config = config  # reserved for future use
+        self.config = config
 
     def _make_nodes(self, messages: list[dict]) -> list[dict[str, Any]]:
         """消息 -> 转发节点"""
@@ -32,12 +32,12 @@ class ForwardHandle:
             nodes.append(node)
         return nodes
 
-    async def get_msg_history(
+    async def _get_msg_history(
         self,
         client: CQHttp,
-        count: int | None = 20,
+        count: int,
         group_id: int | None = None,
-        user_id: int | None = None
+        user_id: int | None = None,
     ) -> list[dict] | None:
         """调用接口获取消息历史，群消息优先"""
         result = None
@@ -57,33 +57,38 @@ class ForwardHandle:
                 logger.exception(f"获取好友({user_id})消息历史失败")
         return result.get("messages") if result else None
 
-    async def forward_messages(
+    async def _forward_messages(
         self,
         client: CQHttp,
         messages: list[dict],
         group_id: int | None = None,
-        user_id: int | None = None
+        user_id: int | None = None,
+        batch_size: int = 0,
     ) -> None:
-        """调用接口转发消息，群消息优先"""
-        if group_id:
+        """调用接口转发消息，群消息优先（支持分批，batch_size=0 表示不分批）"""
+        if batch_size <= 0:
+            batch_size = len(messages)
+
+        # 把 messages 切成多批
+        for i in range(0, len(messages), batch_size):
+            batch = messages[i : i + batch_size]
             try:
-                await client.send_group_forward_msg(
-                    group_id=group_id, messages=messages
-                )
+                if group_id:
+                    await client.send_group_forward_msg(
+                        group_id=group_id, messages=batch
+                    )
+                elif user_id:
+                    await client.send_private_forward_msg(
+                        user_id=user_id, messages=batch
+                    )
+                logger.debug(f"转发消息成功（第{i // batch_size + 1}批）")
             except Exception:
-                logger.exception(f"转发消息到群({group_id})失败")
-        elif user_id:
-            try:
-                await client.send_private_forward_msg(
-                    user_id=user_id, messages=messages
-                )
-            except Exception:
-                logger.exception(f"转发消息到用户({user_id})失败")
+                logger.exception(f"转发消息失败（第{i // batch_size + 1}批）")
 
     async def source_forward(
         self,
         client: CQHttp,
-        count: int = 20,
+        count: int,
         source_group_id: int | None = None,
         source_user_id: int | None = None,
         forward_group_id: int | None = None,
@@ -100,19 +105,21 @@ class ForwardHandle:
         """
         try:
             # 获取消息历史
-            messages = await self.get_msg_history(
+            messages = await self._get_msg_history(
                 client, group_id=source_group_id, user_id=source_user_id, count=count
             )
             if not messages:
                 return False
             # 构造转发节点
             nodes = self._make_nodes(messages)
+
             # 按优先级转发到目标
-            await self.forward_messages(
+            await self._forward_messages(
                 client,
                 group_id=forward_group_id,
                 user_id=forward_user_id,
                 messages=nodes,
+                batch_size=self.config["batch_size"],
             )
             return True
         except Exception:
@@ -122,7 +129,7 @@ class ForwardHandle:
         self,
         event: AiocqhttpMessageEvent,
         target: str | int | None = None,
-        count: int = 20,
+        count: int = 0,
     ):
         """
         抽查指定群或用户的消息
@@ -131,35 +138,43 @@ class ForwardHandle:
         :param count: 抽查数量
         """
         client = event.bot
-        source_group_id = None
-        source_user_id = None
+        sgid = None
+        suid = None
+        count = count or self.config["msg_check_count"]
 
+        # 尝试从At组件获取用户ID
+        at_ids = get_ats(event, noself=True)
+        suid = int(at_ids[0]) if at_ids else None
+
+        # 第二个参数 or 引用的文本
         text = str(target or get_reply_text(event) or "")
 
-        # 先匹配 @数字串（用户）
-        m_user = re.search(r"@(\d+)", text)
-        if m_user:
-            source_user_id = int(m_user.group(1))
-        else:
-            # 再匹配纯数字串（群号）
-            m_group = re.search(r"\d{5,10}", text)
-            if m_group:
-                source_group_id = int(m_group.group(0))
+        # 尝试从文本中获取用户ID
+        if not suid:
+            if m_user := re.search(r"@(\d+)", text):
+                suid = int(m_user.group(1))
+        # 尝试从文本中获取群ID
+        if not suid:
+            if m_group := re.search(r"\d{5,10}", text):
+                sgid = int(m_group.group(0))
 
-        # 如果没指定，随机选一个群
-        if not source_group_id and not source_user_id:
+        # 随机选一个群ID
+        if not sgid and not suid:
             group_list = await client.get_group_list()
             if not group_list:
                 yield event.plain_result("未找到可用的群聊或用户，无法进行抽查")
                 return
-            source_group_id = random.choice(group_list)["group_id"]
+            sgid = random.choice(group_list)["group_id"]
 
+        logger.debug(
+            f"正在抽查{f'群({sgid})' if sgid else f'用户({suid})'}的{count}条聊天记录..."
+        )
         try:
             await self.source_forward(
                 client=client,
                 count=count,
-                source_group_id=source_group_id,
-                source_user_id=source_user_id,
+                source_group_id=sgid,
+                source_user_id=suid,
                 forward_group_id=int(event.get_group_id()),
                 forward_user_id=int(event.get_sender_id()),
             )
