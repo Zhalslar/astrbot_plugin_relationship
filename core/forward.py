@@ -158,8 +158,8 @@ class ForwardHandle:
             await self.source_forward(
                 client=client,
                 count=count,
-                source_group_id=source_group_id or 0,
-                source_user_id=source_user_id or 0,
+                source_group_id=source_group_id,
+                source_user_id=source_user_id,
                 forward_group_id=int(event.get_group_id()),
                 forward_user_id=int(event.get_sender_id()),
             )
