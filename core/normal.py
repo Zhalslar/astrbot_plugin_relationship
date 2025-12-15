@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING
 
+from astrbot.api import logger
 from astrbot.core.config.astrbot_config import AstrBotConfig
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
     AiocqhttpMessageEvent,
@@ -27,6 +28,7 @@ class NormalHandle:
             for i, g in enumerate(group_list)
         )
         info = f"【群列表】共加入{len(group_list)}个群：\n\n{group_info}"
+        logger.debug(info)
         url = await self.plugin.text_to_image(info)
         await event.send(event.image_result(url))
 
@@ -41,6 +43,7 @@ class NormalHandle:
             for i, f in enumerate(friend_list)
         )
         info = f"【好友列表】共{len(friend_list)}位好友：\n\n{friend_info}"
+        logger.debug(info)
         url = await self.plugin.text_to_image(info)
         await event.send(event.image_result(url))
 

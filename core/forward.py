@@ -137,12 +137,12 @@ class ForwardHandle:
         text = str(target or get_reply_text(event) or "")
 
         # 先匹配 @数字串（用户）
-        m_user = re.fullmatch(r"@(\d+)", text)
+        m_user = re.search(r"@(\d+)", text)
         if m_user:
             source_user_id = int(m_user.group(1))
         else:
             # 再匹配纯数字串（群号）
-            m_group = re.fullmatch(r"\d{5,10}", text)
+            m_group = re.search(r"\d{5,10}", text)
             if m_group:
                 source_group_id = int(m_group.group(0))
 

@@ -1,12 +1,12 @@
 {
     "manage_group": {
         "description": "审批群",
-        "type": "int",
+        "type": "string",
         "hint": "bot收到的好友申请、群邀请在审批群里审批，不填则将审批信息私发给审批员"
     },
     "manage_user": {
         "description": "审批员",
-        "type": "int",
+        "type": "string",
         "hint": "留空则默认bot管理员作为审批员"
     },
     "max_ban_duration": {

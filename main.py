@@ -19,17 +19,17 @@ class RelationshipPlugin(Star):
         super().__init__(context)
         self.config = config
         # 审批群
-        self.manage_group: int = config["manage_group"]
+        self.manage_group: str = config["manage_group"]
         # 审批员
-        self.manage_user: int = config["manage_user"]
+        self.manage_user: str = config["manage_user"]
         if not self.manage_user:
             self.manage_user = next(
                 (
-                    int(i)
+                    str(i)
                     for i in context.get_config().get("admins_id", [])
                     if i.isdigit()
                 ),
-                0,
+                "",
             )
             self.config.save_config()
         if not self.manage_group and not self.manage_user:
@@ -46,10 +46,10 @@ class RelationshipPlugin(Star):
         发送回复消息到管理群或管理员私聊
         """
         if self.manage_group:
-            event.message_obj.group_id = str(self.manage_group)
+            event.message_obj.group_id = self.manage_group
         elif self.manage_user:
             event.message_obj.group_id = ""
-            event.message_obj.sender.user_id = str(self.manage_user)
+            event.message_obj.sender.user_id = self.manage_user
         else:
             event.stop_event()
             logger.warning("未配置审批群或审批员，已跳过审批消息的发送")
@@ -58,12 +58,14 @@ class RelationshipPlugin(Star):
 
     async def manage_source_forward(self, event: AiocqhttpMessageEvent):
         if self.manage_group or self.manage_user:
+            fgid = int(self.manage_group) if self.manage_group.isdigit() else None
+            fuid = int(self.manage_user) if self.manage_user.isdigit() else None
             await self.forward.source_forward(
                 client=event.bot,
                 source_group_id=int(event.get_group_id()),
                 source_user_id=int(event.get_sender_id()),
-                forward_group_id=self.manage_group,
-                forward_user_id=self.manage_user,
+                forward_group_id=fgid,
+                forward_user_id=fuid,
             )
         else:
             logger.warning("未配置管理群或管理用户, 已跳过消息转发")
