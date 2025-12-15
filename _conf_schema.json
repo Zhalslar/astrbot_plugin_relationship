@@ -1,58 +1,83 @@
 {
     "manage_group": {
         "description": "审批群",
-        "type": "string",
-        "hint": "bot收到的好友申请、群邀请在审批群里审批，不填则将审批信息私发给审批员"
+        "hint": "bot收到的好友申请、群邀请在审批群里审批，不填则将审批信息私发给bot管理员",
+        "type": "string"
     },
-    "manage_user": {
+    "manage_users": {
         "description": "审批员",
-        "type": "string",
-        "hint": "留空则默认bot管理员作为审批员"
+        "hint": "bot管理员已默认添加为审批员, 此外可添加其他审批员。 审批员才有权限审批Bot收到的好友申请和群邀请",
+        "type": "list"
     },
-    "max_ban_duration": {
-        "description": "允许的最大禁言时间",
+    "max_ban_days": {
+        "description": "触发自动退群的禁言天数",
+        "hint": "单位：秒，bot被禁言超过此时间时将自动退群",
         "type": "int",
-        "hint": "单位：秒，bot被禁言超过此时间时将自动退群，推荐值：一天",
+        "slider": {
+            "min": 0,
+            "max": 30,
+            "step": 0.5
+        },
         "default": 86400
     },
     "max_group_capacity": {
         "description": "最大群容量",
-        "type": "int",
         "hint": "bot加的群若超过此容量将自动退群，可有效防止被乱拉群，推荐值：100",
+        "type": "int",
+        "slider": {
+            "min": 0,
+            "max": 500,
+            "step": 1
+        },
         "default": 100
     },
     "group_blacklist": {
         "description": "群聊黑名单",
-        "type": "list",
-        "hint": "群聊黑名单，bot被踢时自动拉黑对应群聊，bot将不会再加入这些群"
+        "hint": "群聊黑名单，bot被踢时自动拉黑对应群聊，bot将不会再加入这些群",
+        "type": "list"
     },
     "mutual_blacklist": {
         "description": "互斥成员",
-        "type": "list",
-        "hint": "互斥成员，bot加入群时，若群内有这些成员，bot将自动退群"
+        "hint": "互斥成员，bot加入群时，若群内有这些成员，bot将自动退群",
+        "type": "list"
     },
     "auto_check_messages": {
         "description": "是否自动抽查群聊天记录",
-        "type": "bool",
         "hint": "开启后，每次触发群管理事件时，bot会自动抽查对应群的聊天记录",
+        "type": "bool",
         "default": true
     },
     "check_delay": {
         "description": "新群延迟抽查时间（秒）",
-        "type": "int",
         "hint": "机器人被拉入新群后，等待多少秒再执行自动抽查",
+        "type": "int",
+        "slider": {
+            "min": 0,
+            "max": 600,
+            "step": 1
+        },
         "default": 30
     },
     "msg_check_count": {
         "description": "抽查消息默认数量",
         "type": "int",
         "hint": "每次抽查默认抽查多少条消息，“抽查”命令可输入一个数字来指定抽查数量，自动抽查使用默认值",
+        "slider": {
+            "min": 1,
+            "max": 100,
+            "step": 1
+        },
         "default": 20
     },
-    "batch_size":{
+    "batch_size": {
         "description": "单次转发消息数量",
         "type": "int",
         "hint": "由于一次性转发过多消息容易报错，所有插件采用了分批次转发的策略。此处定义每次转发的消息数量，消息超过此数量会自动分批次转发",
+        "slider": {
+            "min": 10,
+            "max": 60,
+            "step": 1
+        },
         "default": 40
     }
 }

@@ -18,21 +18,20 @@ class RelationshipPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
         self.config = config
+        # bot管理员
+        self.admin_id: str = next(
+            (str(i) for i in context.get_config().get("admins_id", []) if i.isdigit()),
+            "",
+        )
+        # 审批员
+        self.manage_users = config["manage_users"]
+        if self.admin_id not in self.manage_users:
+            self.manage_users.append(self.admin_id)
+            self.config.save_config()
         # 审批群
         self.manage_group: str = config["manage_group"]
-        # 审批员
-        self.manage_user: str = config["manage_user"]
-        if not self.manage_user:
-            self.manage_user = next(
-                (
-                    str(i)
-                    for i in context.get_config().get("admins_id", [])
-                    if i.isdigit()
-                ),
-                "",
-            )
-            self.config.save_config()
-        if not self.manage_group and not self.manage_user:
+
+        if not self.manage_group and not self.manage_users:
             logger.warning("未配置审批群或审批员，将无法发送审批消息")
 
     async def initialize(self):
@@ -43,24 +42,24 @@ class RelationshipPlugin(Star):
 
     async def manage_send(self, event: AiocqhttpMessageEvent, message: str):
         """
-        发送回复消息到管理群或管理员私聊
+        发送回复消息到管理群或bot管理员
         """
         if self.manage_group:
             event.message_obj.group_id = self.manage_group
-        elif self.manage_user:
+        elif self.admin_id:
             event.message_obj.group_id = ""
-            event.message_obj.sender.user_id = self.manage_user
+            event.message_obj.sender.user_id = self.admin_id
         else:
             event.stop_event()
-            logger.warning("未配置审批群或审批员，已跳过审批消息的发送")
+            logger.warning("未配置审批群或bot管理员，已跳过消息发送")
             return
         await event.send(event.plain_result(message))
 
     async def manage_source_forward(self, event: AiocqhttpMessageEvent):
-        """抽查消息发给审批群或审批员"""
-        if self.manage_group or self.manage_user:
+        """抽查消息发给管理群或bot管理员"""
+        if self.manage_group or self.admin_id:
             fgid = int(self.manage_group) if self.manage_group.isdigit() else None
-            fuid = int(self.manage_user) if self.manage_user.isdigit() else None
+            fuid = int(self.admin_id) if self.admin_id.isdigit() else None
             await self.forward.source_forward(
                 client=event.bot,
                 count=self.config["msg_check_count"],
@@ -86,16 +85,14 @@ class RelationshipPlugin(Star):
 
     @filter.permission_type(PermissionType.ADMIN)
     @filter.command("退群")
-    async def set_group_leave(
-        self, event: AiocqhttpMessageEvent, group_id: int | None = None
-    ):
-        """退群 <群号>"""
-        await self.normal.set_group_leave(event, group_id)
+    async def set_group_leave(self, event: AiocqhttpMessageEvent):
+        """退群 <序号|群号|区间> [可批量]"""
+        await self.normal.set_group_leave(event)
 
     @filter.permission_type(PermissionType.ADMIN)
     @filter.command("删了", alias={"删除好友"})
     async def delete_friend(self, event: AiocqhttpMessageEvent):
-        """删了 @好友 @QQ"""
+        """删好友 <@昵称|QQ|序号|区间> [可批量]"""
         await self.normal.delete_friend(event)
 
     @filter.platform_adapter_type(PlatformAdapterType.AIOCQHTTP)
@@ -103,13 +100,11 @@ class RelationshipPlugin(Star):
         """监听好友申请或群邀请"""
         await self.request.event_monitoring(event)
 
-    @filter.permission_type(PermissionType.ADMIN)
     @filter.command("同意")
     async def agree(self, event: AiocqhttpMessageEvent, extra: str = ""):
         """同意好友申请或群邀请"""
         await self.request.agree(event, extra)
 
-    @filter.permission_type(PermissionType.ADMIN)
     @filter.command("拒绝")
     async def refuse(self, event: AiocqhttpMessageEvent, extra: str = ""):
         """拒绝好友申请或群邀请"""

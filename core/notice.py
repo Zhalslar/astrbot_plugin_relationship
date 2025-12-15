@@ -114,6 +114,7 @@ class NoticeDecisionService:
         self.client = client
         self.msg = message
         self.config = config
+        self.max_duration = self.config["max_ban_days"] * 24 * 60 * 60
 
         self._group_name: str | None = None
         self._operator_name: str | None = None
@@ -194,8 +195,8 @@ class NoticeDecisionService:
         duration_str = convert_duration_advanced(self.msg.duration)
         result.admin_reply = self._reply("ban_set", duration_str=duration_str, **ctx)
 
-        if self.msg.duration > self.config["max_ban_duration"]:
-            max_str = convert_duration_advanced(self.config["max_ban_duration"])
+        if self.msg.duration > self.max_duration:
+            max_str = convert_duration_advanced(self.max_duration)
             result.admin_reply += self._suffix("ban_exceed", max_duration_str=max_str)
             result.leave_group = True
 
@@ -313,10 +314,6 @@ class NoticeHandle:
         self.plugin = plugin
         self.config = config
 
-        self.check_delay = config["check_delay"]
-        self.manage_group = config["manage_group"]
-        self.manage_user = config["manage_user"]
-
     def need_handle(self, msg: NoticeMessage) -> bool:
         return (
             msg.post_type == "notice"
@@ -344,8 +341,8 @@ class NoticeHandle:
             await self.plugin.manage_send(event, result.admin_reply)
 
         # 延时抽查
-        if result.delay_check and self.check_delay:
-            await asyncio.sleep(self.check_delay)
+        if result.delay_check and self.config["check_delay"]:
+            await asyncio.sleep(self.config["check_delay"])
 
         if self.config["auto_check_messages"] and (
             result.admin_reply or result.operator_reply

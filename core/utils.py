@@ -1,4 +1,6 @@
 
+import re
+
 from aiocqhttp import CQHttp
 
 from astrbot.core.message.components import At, Plain, Reply
@@ -109,3 +111,46 @@ def get_ats(
     return list(ats)
 
 
+def parse_multi_input(raw: str, total: int) -> tuple[set[int], set[str]]:
+    """
+    解析文本参数，支持：
+    - 空格分隔
+    - 序号
+    - 区间（1~5 / 1-5）
+    - 直接 ID（QQ / 群号）
+
+    返回：
+        indexes: 0-based 索引集合
+        ids:     明确 ID 集合
+    """
+    indexes: set[int] = set()
+    ids: set[str] = set()
+
+    if not raw:
+        return indexes, ids
+
+    for token in raw.strip().split():
+        token = token.strip()
+        if not token:
+            continue
+
+        # 区间
+        m = re.fullmatch(r"(\d+)\s*[~-]\s*(\d+)", token)
+        if m:
+            start, end = int(m.group(1)), int(m.group(2))
+            if start > end:
+                start, end = end, start
+            for i in range(start, end + 1):
+                if 1 <= i <= total:
+                    indexes.add(i - 1)
+            continue
+
+        # 单数字
+        if token.isdigit():
+            num = int(token)
+            if 1 <= num <= total:
+                indexes.add(num - 1)
+            else:
+                ids.add(token)
+
+    return indexes, ids

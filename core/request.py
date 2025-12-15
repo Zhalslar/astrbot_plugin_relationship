@@ -297,12 +297,10 @@ class RequestHandle:
 
     async def agree(self, event: AiocqhttpMessageEvent, extra: str = ""):
         """同意好友申请或群邀请"""
+        if event.get_sender_id() not in self.config["manage_users"]:
+            await event.send(event.plain_result("你没权限"))
+            return True
         text = get_reply_text(event)
-        if "【好友申请】" not in text and "【群邀请】" not in text:
-            await event.send(event.plain_result("需引用一条好友申请或群邀请"))
-            return
-
-        # 解析文本为结构化数据
         request_data = parse_request_from_text(text)
         if not request_data:
             await event.send(
@@ -325,12 +323,11 @@ class RequestHandle:
 
     async def refuse(self, event: AiocqhttpMessageEvent, extra: str = ""):
         """拒绝好友申请或群邀请"""
-        text = get_reply_text(event)
-        if "【好友申请】" not in text and "【群邀请】" not in text:
-            await event.send(event.plain_result("需引用一条好友申请或群邀请"))
-            return
+        if event.get_sender_id() not in self.config["manage_users"]:
+            await event.send(event.plain_result("你没权限"))
+            return True
 
-        # 解析文本为结构化数据
+        text = get_reply_text(event)
         request_data = parse_request_from_text(text)
         if not request_data:
             await event.send(
