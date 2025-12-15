@@ -1,17 +1,72 @@
+import asyncio
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
 from aiocqhttp import CQHttp
 
 from astrbot.api import logger
 from astrbot.core.config.astrbot_config import AstrBotConfig
+from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
+    AiocqhttpMessageEvent,
+)
 
 from .utils import convert_duration_advanced, get_nickname
 
+if TYPE_CHECKING:
+    from ..main import RelationshipPlugin
 
-class NoticeHandler:
-    """处理群聊相关事件（如管理员变动、禁言、踢出、邀请等）"""
 
-    # 回复模板字典
+# =========================
+# Notice 消息模型（只读事实）
+# =========================
+@dataclass(frozen=True)
+class NoticeMessage:
+    post_type: str
+    notice_type: str
+    sub_type: str
+
+    user_id: str
+    self_id: str
+    group_id: str
+    operator_id: str
+
+    duration: int = 0
+
+    @classmethod
+    def from_raw(cls, raw: dict) -> "NoticeMessage":
+        return cls(
+            post_type=raw.get("post_type", ""),
+            notice_type=raw.get("notice_type", ""),
+            sub_type=raw.get("sub_type", ""),
+            user_id=str(raw.get("user_id", "")),
+            self_id=str(raw.get("self_id", "")),
+            group_id=str(raw.get("group_id", "")),
+            operator_id=str(raw.get("operator_id", "")),
+            duration=int(raw.get("duration", 0)),
+        )
+
+
+# =========================
+# 业务结果对象（强语义）
+# =========================
+@dataclass
+class NoticeResult:
+    admin_reply: str = ""
+    operator_reply: str = ""
+
+    delay_check: bool = False
+    leave_group: bool = False
+
+    add_group_blacklist: bool = False
+
+
+# =========================
+# 业务决策服务（无副作用）
+# =========================
+class NoticeDecisionService:
+    """仅负责：业务判断 + 生成结果"""
+
     REPLY_TEMPLATES = {
-        # 管理员变动
         "admin_set": {
             "admin": "哇！我成为了 {group_name}({group_id}) 的管理员",
             "operator": "芜湖~拿到管理了",
@@ -20,7 +75,6 @@ class NoticeHandler:
             "admin": "呜呜ww.. 我在 {group_name}({group_id}) 的管理员被撤了",
             "operator": "呜呜ww..干嘛撤掉我管理",
         },
-        # 禁言事件
         "ban_lift": {
             "admin": "好耶！{operator_name} 在 {group_name}({group_id}) 解除了我的禁言",
             "operator": "感谢解禁",
@@ -31,11 +85,9 @@ class NoticeHandler:
         "ban_exceed": {
             "suffix": "\n禁言时间超过{max_duration_str}，我退群了",
         },
-        # 被踢事件
         "kicked": {
             "admin": "呜呜ww..我被 {operator_name} 踢出了 {group_name}({group_id})，已将此群拉进黑名单",
         },
-        # 被邀请事件
         "invited": {
             "admin": "主人..我被 {operator_name} 拉进了 {group_name}({group_id})。",
         },
@@ -53,216 +105,263 @@ class NoticeHandler:
         },
     }
 
-    def __init__(self, client: CQHttp, raw_message: dict, config: AstrBotConfig):
+    def __init__(
+        self,
+        client: CQHttp,
+        message: NoticeMessage,
+        config: AstrBotConfig,
+    ):
         self.client = client
-        self.raw_message = raw_message
+        self.msg = message
         self.config = config
 
-        # 初始化结果状态
-        self.admin_reply = ""
-        self.operator_reply = ""
-        self.delay_check = False
-        self.leave_group = False
-
-        # 提取基本信息
-        self.user_id = str(raw_message.get("user_id", ""))
-        self.group_id = str(raw_message.get("group_id", ""))
-        self.operator_id = raw_message.get("operator_id", 0)
-        self.notice_type = raw_message.get("notice_type", "")
-        self.sub_type = raw_message.get("sub_type", "")
-
-        # 延迟加载的信息
         self._group_name: str | None = None
         self._operator_name: str | None = None
 
-    async def handle(self) -> tuple[str, str, bool, bool]:
-        """处理通知事件的主入口"""
-        match (self.notice_type, self.sub_type):
+    # ---------
+    # 公共入口
+    # ---------
+    async def decide(self) -> NoticeResult:
+        result = NoticeResult()
+
+        match (self.msg.notice_type, self.msg.sub_type):
             case ("group_admin", _):
-                await self._handle_admin_change()
+                await self._handle_admin_change(result)
             case ("group_ban", _):
-                await self._handle_ban()
+                await self._handle_ban(result)
             case ("group_decrease", "kick_me"):
-                await self._handle_kicked()
+                await self._handle_kicked(result)
             case ("group_increase", "invite"):
-                await self._handle_invited()
+                await self._handle_invited(result)
 
-        return self.admin_reply, self.operator_reply, self.delay_check, self.leave_group
+        return result
 
+    # ----------------
+    # 基础信息获取
+    # ----------------
     async def _get_group_name(self) -> str:
-        """获取群名称（懒加载）"""
         if self._group_name is None:
-            group_info = await self.client.get_group_info(group_id=int(self.group_id))
-            self._group_name = group_info.get("group_name", "")
+            info = await self.client.get_group_info(group_id=int(self.msg.group_id))
+            self._group_name = info.get("group_name", "")
         return self._group_name
 
     async def _get_operator_name(self) -> str:
-        """获取操作者昵称（懒加载）"""
         if self._operator_name is None:
             self._operator_name = await get_nickname(
-                self.client, user_id=self.operator_id, group_id=self.group_id
+                self.client,
+                user_id=int(self.msg.operator_id),
+                group_id=self.msg.group_id,
             )
         return self._operator_name
 
-    def _format_reply(
-        self, template_key: str, reply_type: str = "admin", **kwargs
-    ) -> str:
-        """格式化回复模板"""
-        template = self.REPLY_TEMPLATES.get(template_key, {}).get(reply_type, "")
-        return template.format(**kwargs) if template else ""
+    def _reply(self, key: str, role: str = "admin", **kwargs) -> str:
+        tpl = self.REPLY_TEMPLATES.get(key, {}).get(role, "")
+        return tpl.format(**kwargs) if tpl else ""
 
-    def _format_suffix(self, template_key: str, **kwargs) -> str:
-        """格式化后缀模板"""
-        template = self.REPLY_TEMPLATES.get(template_key, {}).get("suffix", "")
-        return template.format(**kwargs) if template else ""
+    def _suffix(self, key: str, **kwargs) -> str:
+        tpl = self.REPLY_TEMPLATES.get(key, {}).get("suffix", "")
+        return tpl.format(**kwargs) if tpl else ""
 
-    async def _handle_admin_change(self) -> None:
-        """处理群管理员变动事件"""
+    # ----------------
+    # 各事件处理
+    # ----------------
+    async def _handle_admin_change(self, result: NoticeResult):
         group_name = await self._get_group_name()
-        context = {"group_name": group_name, "group_id": self.group_id}
+        ctx = {"group_name": group_name, "group_id": self.msg.group_id}
 
-        if self.sub_type == "set":
-            self.admin_reply = self._format_reply("admin_set", "admin", **context)
-            self.operator_reply = self._format_reply("admin_set", "operator")
+        if self.msg.sub_type == "set":
+            result.admin_reply = self._reply("admin_set", **ctx)
+            result.operator_reply = self._reply("admin_set", "operator")
         else:
-            self.admin_reply = self._format_reply("admin_unset", "admin", **context)
-            self.operator_reply = self._format_reply("admin_unset", "operator")
+            result.admin_reply = self._reply("admin_unset", **ctx)
+            result.operator_reply = self._reply("admin_unset", "operator")
 
-    async def _handle_ban(self) -> None:
-        """处理群禁言事件"""
-        duration = self.raw_message.get("duration", 0)
+    async def _handle_ban(self, result: NoticeResult):
         group_name = await self._get_group_name()
         operator_name = await self._get_operator_name()
 
-        context = {
+        ctx = {
             "group_name": group_name,
-            "group_id": self.group_id,
+            "group_id": self.msg.group_id,
             "operator_name": operator_name,
         }
 
-        if duration == 0:
-            self.admin_reply = self._format_reply("ban_lift", "admin", **context)
-            self.operator_reply = self._format_reply("ban_lift", "operator")
-        else:
-            duration_str = convert_duration_advanced(duration)
-            self.admin_reply = self._format_reply(
-                "ban_set", "admin", duration_str=duration_str, **context
-            )
+        if self.msg.duration == 0:
+            result.admin_reply = self._reply("ban_lift", **ctx)
+            result.operator_reply = self._reply("ban_lift", "operator")
+            return
 
-            if duration > self.config["max_ban_duration"]:
-                max_duration_str = convert_duration_advanced(
-                    self.config["max_ban_duration"]
-                )
-                self.admin_reply += self._format_suffix(
-                    "ban_exceed", max_duration_str=max_duration_str
-                )
-                self.leave_group = True
+        duration_str = convert_duration_advanced(self.msg.duration)
+        result.admin_reply = self._reply("ban_set", duration_str=duration_str, **ctx)
 
-    async def _handle_kicked(self) -> None:
-        """处理被踢出群事件"""
-        if self.group_id not in self.config["group_blacklist"]:
-            self.config["group_blacklist"].append(self.group_id)
-            self.config.save_config()
+        if self.msg.duration > self.config["max_ban_duration"]:
+            max_str = convert_duration_advanced(self.config["max_ban_duration"])
+            result.admin_reply += self._suffix("ban_exceed", max_duration_str=max_str)
+            result.leave_group = True
 
+    async def _handle_kicked(self, result: NoticeResult):
         group_name = await self._get_group_name()
         operator_name = await self._get_operator_name()
 
-        self.admin_reply = self._format_reply(
+        result.admin_reply = self._reply(
             "kicked",
-            "admin",
             operator_name=operator_name,
             group_name=group_name,
-            group_id=self.group_id,
+            group_id=self.msg.group_id,
         )
-        logger.info(f"群聊 {self.group_id} 已因被踢被加入黑名单。")
+        result.leave_group = True
+        result.add_group_blacklist = True
 
-    async def _handle_invited(self) -> None:
-        """处理被邀请进群事件"""
+    async def _handle_invited(self, result: NoticeResult):
         group_name = await self._get_group_name()
         operator_name = await self._get_operator_name()
 
-        context = {
+        ctx = {
             "group_name": group_name,
-            "group_id": self.group_id,
+            "group_id": self.msg.group_id,
             "operator_name": operator_name,
         }
 
-        self.admin_reply = self._format_reply("invited", "admin", **context)
+        result.admin_reply = self._reply("invited", **ctx)
 
-        # 执行各项检查
-        if await self._check_group_blacklist(context):
+        if await self._check_blacklist(result, ctx):
             return
-        if await self._check_group_capacity(context):
+        if await self._check_capacity(result, ctx):
             return
-        if await self._check_mutual_blacklist(context):
+        if await self._check_mutual_blacklist(result, ctx):
             return
 
-        # 所有检查通过，进行延时抽查
-        self.delay_check = True
+        result.delay_check = True
 
-    async def _check_group_blacklist(self, context: dict) -> bool:
-        """检查群是否在黑名单中"""
-        if self.group_id in self.config["group_blacklist"]:
-            self.admin_reply += self._format_suffix("invited_blacklist", **context)
-            self.operator_reply = self._format_reply("invited_blacklist", "operator")
-            self.leave_group = True
+    # ----------------
+    # 各种检查
+    # ----------------
+    async def _check_blacklist(self, result: NoticeResult, ctx: dict) -> bool:
+        if self.msg.group_id in self.config["group_blacklist"]:
+            result.admin_reply += self._suffix("invited_blacklist", **ctx)
+            result.operator_reply = self._reply("invited_blacklist", "operator")
+            result.leave_group = True
             return True
         return False
 
-    async def _check_group_capacity(self, context: dict) -> bool:
-        """检查群数量是否超过最大容量"""
+    async def _check_capacity(self, result: NoticeResult, ctx: dict) -> bool:
         group_list = await self.client.get_group_list()
-        max_capacity = self.config["max_group_capacity"]
+        max_cap = self.config["max_group_capacity"]
 
-        if len(group_list) > max_capacity:
-            self.admin_reply += self._format_suffix(
+        if len(group_list) > max_cap:
+            result.admin_reply += self._suffix(
                 "invited_capacity_exceeded",
                 group_count=len(group_list),
-                max_capacity=max_capacity,
-                **context,
+                max_capacity=max_cap,
+                **ctx,
             )
-            self.operator_reply = self._format_reply(
+            result.operator_reply = self._reply(
                 "invited_capacity_exceeded",
                 "operator",
                 group_count=len(group_list),
-                max_capacity=max_capacity,
+                max_capacity=max_cap,
             )
-            self.leave_group = True
+            result.leave_group = True
             return True
         return False
 
-    async def _check_mutual_blacklist(self, context: dict) -> bool:
-        """检查群内是否存在互斥成员"""
-        mutual_blacklist_set = set(self.config["mutual_blacklist"]).copy()
-        mutual_blacklist_set.discard(str(self.user_id))
+    async def _check_mutual_blacklist(self, result: NoticeResult, ctx: dict) -> bool:
+        mutual = set(self.config["mutual_blacklist"])
+        mutual.discard(self.msg.user_id)
 
-        member_list = await self.client.get_group_member_list(
-            group_id=int(self.group_id)
+        members = await self.client.get_group_member_list(
+            group_id=int(self.msg.group_id)
         )
-        member_ids = [str(member["user_id"]) for member in member_list]
-        common_ids = set(member_ids) & mutual_blacklist_set
+        member_ids = {str(m["user_id"]) for m in members}
 
-        if common_ids:
-            member_id = common_ids.pop()
-            member_name = await get_nickname(
-                self.client, user_id=int(member_id), group_id=self.group_id
-            )
+        common = member_ids & mutual
+        if not common:
+            return False
 
-            self.admin_reply += self._format_suffix(
-                "invited_mutual_blacklist",
-                member_name=member_name,
-                member_id=member_id,
-                **context,
-            )
-            self.operator_reply = self._format_reply(
-                "invited_mutual_blacklist",
-                "operator",
-                member_name=member_name,
-                member_id=member_id,
-            )
-            self.leave_group = True
-            return True
-        return False
+        member_id = common.pop()
+        member_name = await get_nickname(
+            self.client,
+            user_id=int(member_id),
+            group_id=self.msg.group_id,
+        )
+
+        result.admin_reply += self._suffix(
+            "invited_mutual_blacklist",
+            member_name=member_name,
+            member_id=member_id,
+            **ctx,
+        )
+        result.operator_reply = self._reply(
+            "invited_mutual_blacklist",
+            "operator",
+            member_name=member_name,
+            member_id=member_id,
+        )
+        result.leave_group = True
+        return True
 
 
+# =========================
+# 应用层（唯一入口）
+# =========================
+class NoticeHandle:
+    def __init__(
+        self,
+        plugin: "RelationshipPlugin",
+        config: AstrBotConfig
+    ):
+        self.plugin = plugin
+        self.config = config
 
+        self.check_delay = config["check_delay"]
+        self.manage_group = config["manage_group"]
+        self.manage_user = config["manage_user"]
+
+    def need_handle(self, msg: NoticeMessage) -> bool:
+        return (
+            msg.post_type == "notice"
+            and msg.user_id == msg.self_id
+            and msg.operator_id != msg.self_id
+        )
+
+    async def on_notice(self, event: AiocqhttpMessageEvent):
+        raw = getattr(event.message_obj, "raw_message", {})
+        msg = NoticeMessage.from_raw(raw)
+
+        if not self.need_handle(msg):
+            return
+
+        client = event.bot
+        service = NoticeDecisionService(client, msg, self.config)
+        result = await service.decide()
+
+        # 操作者提示
+        if result.operator_reply:
+            await event.send(event.plain_result(result.operator_reply))
+
+        # 管理者提示
+        if result.admin_reply:
+            await self.plugin.manage_send(event, result.admin_reply)
+
+        # 延时抽查
+        if result.delay_check and self.check_delay:
+            await asyncio.sleep(self.check_delay)
+
+        if self.config["auto_check_messages"] and (
+            result.admin_reply or result.operator_reply
+        ):
+            await self.plugin.manage_source_forward(event)
+
+        # 黑名单副作用
+        if result.add_group_blacklist:
+            if msg.group_id not in self.config["group_blacklist"]:
+                self.config["group_blacklist"].append(msg.group_id)
+                self.config.save_config()
+                logger.info(f"群聊 {msg.group_id} 已加入黑名单")
+
+        # 退群
+        if result.leave_group:
+            await asyncio.sleep(5)
+            await client.set_group_leave(group_id=int(msg.group_id))
+
+        event.stop_event()
