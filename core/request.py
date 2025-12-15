@@ -292,7 +292,7 @@ class RequestHandle:
             if user_reply:
                 await event.send(event.plain_result(user_reply))
             if admin_reply:
-                await self.plugin.send_reply(event, admin_reply)
+                await self.plugin.manage_send(event, admin_reply)
             logger.info(f"收到好友申请或群邀请: {raw_message}")
 
     async def agree(self, event: AiocqhttpMessageEvent, extra: str = ""):

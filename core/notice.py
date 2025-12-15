@@ -10,7 +10,6 @@ from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
     AiocqhttpMessageEvent,
 )
 
-from .forward import ForwardHandle
 from .utils import convert_duration_advanced, get_nickname
 
 if TYPE_CHECKING:
@@ -309,12 +308,10 @@ class NoticeHandle:
     def __init__(
         self,
         plugin: "RelationshipPlugin",
-        config: AstrBotConfig,
-        forward: ForwardHandle,
+        config: AstrBotConfig
     ):
         self.plugin = plugin
         self.config = config
-        self.forward = forward
 
         self.check_delay = config["check_delay"]
         self.manage_group = config["manage_group"]
@@ -344,7 +341,7 @@ class NoticeHandle:
 
         # 管理者提示
         if result.admin_reply:
-            await self.plugin.send_reply(event, result.admin_reply)
+            await self.plugin.manage_send(event, result.admin_reply)
 
         # 延时抽查
         if result.delay_check and self.check_delay:
@@ -353,13 +350,7 @@ class NoticeHandle:
         if self.config["auto_check_messages"] and (
             result.admin_reply or result.operator_reply
         ):
-            await self.forward.source_forward(
-                client=client,
-                source_group_id=int(event.get_group_id()),
-                forward_group_id=int(self.manage_group),
-                forward_user_id=int(self.manage_user),
-            )
-
+            await self.plugin.manage_source_forward(event)
 
         # 黑名单副作用
         if result.add_group_blacklist:

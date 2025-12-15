@@ -19,41 +19,54 @@ class RelationshipPlugin(Star):
         super().__init__(context)
         self.config = config
         # 审批群
-        self.manage_group: str = str(config["manage_group"])
+        self.manage_group: int = config["manage_group"]
         # 审批员
-        self.manage_user: str | None = str(config["manage_user"])
+        self.manage_user: int = config["manage_user"]
         if not self.manage_user:
             self.manage_user = next(
                 (
-                    str(i)
+                    int(i)
                     for i in context.get_config().get("admins_id", [])
                     if i.isdigit()
                 ),
-                None,
+                0,
             )
             self.config.save_config()
-
+        if not self.manage_group and not self.manage_user:
+            logger.warning("未配置审批群或审批员，将无法发送审批消息")
 
     async def initialize(self):
         self.forward = ForwardHandle(self.config)
         self.normal = NormalHandle(self, self.config)
         self.request = RequestHandle(self, self.config)
-        self.notice = NoticeHandle(self, self.config, self.forward)
+        self.notice = NoticeHandle(self, self.config)
 
-    async def send_reply(self, event: AiocqhttpMessageEvent, message: str):
+    async def manage_send(self, event: AiocqhttpMessageEvent, message: str):
         """
         发送回复消息到管理群或管理员私聊
         """
         if self.manage_group:
-            event.message_obj.group_id = self.manage_group
+            event.message_obj.group_id = str(self.manage_group)
         elif self.manage_user:
             event.message_obj.group_id = ""
-            event.message_obj.sender.user_id = self.manage_user
+            event.message_obj.sender.user_id = str(self.manage_user)
         else:
             event.stop_event()
-            logger.warning("未配置管理员QQ或管理群群号")
+            logger.warning("未配置审批群或审批员，已跳过审批消息的发送")
             return
         await event.send(event.plain_result(message))
+
+    async def manage_source_forward(self, event: AiocqhttpMessageEvent):
+        if self.manage_group or self.manage_user:
+            await self.forward.source_forward(
+                client=event.bot,
+                source_group_id=int(event.get_group_id()),
+                source_user_id=int(event.get_sender_id()),
+                forward_group_id=self.manage_group,
+                forward_user_id=self.manage_user,
+            )
+        else:
+            logger.warning("未配置管理群或管理用户, 已跳过消息转发")
 
     @filter.permission_type(PermissionType.ADMIN)
     @filter.command("群列表")

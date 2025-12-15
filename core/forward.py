@@ -15,7 +15,7 @@ from .utils import get_reply_text
 
 class ForwardHandle:
     def __init__(self, config: AstrBotConfig):
-        self.config = config # 备用
+        self.config = config  # reserved for future use
 
     def _make_nodes(self, messages: list[dict]) -> list[dict[str, Any]]:
         """消息 -> 转发节点"""
@@ -63,7 +63,7 @@ class ForwardHandle:
         messages: list[dict],
         group_id: int | None = None,
         user_id: int | None = None
-    ) -> list[dict] | None:
+    ) -> None:
         """调用接口转发消息，群消息优先"""
         if group_id:
             try:
@@ -84,10 +84,10 @@ class ForwardHandle:
         self,
         client: CQHttp,
         count: int = 20,
-        source_group_id: int = 0,
-        source_user_id: int = 0,
-        forward_group_id: int = 0,
-        forward_user_id: int = 0,
+        source_group_id: int | None = None,
+        source_user_id: int | None = None,
+        forward_group_id: int | None = None,
+        forward_user_id: int | None = None,
     ) -> bool:
         """
         转发消息
