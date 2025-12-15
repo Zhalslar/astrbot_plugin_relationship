@@ -14,8 +14,11 @@ from astrbot.core.star.filter.platform_adapter_type import PlatformAdapterType
 
 from .core.notice import NoticeHandler
 from .core.request import (
+    FriendRequest,
+    GroupInvite,
     handle_add_request,
     monitor_add_request,
+    parse_request_from_text,
 )
 from .core.utils import (
     check_messages,
@@ -137,7 +140,7 @@ class RelationshipPlugin(Star):
         """监听好友申请或群邀请"""
         raw_message = getattr(event.message_obj, "raw_message", None)
         if isinstance(raw_message, dict) and raw_message.get("post_type") == "request":
-            admin_reply, user_reply = await monitor_add_request(
+            admin_reply, user_reply, request_data = await monitor_add_request(
                 client=event.bot, raw_message=raw_message, config=self.config
             )
             if user_reply:
@@ -154,15 +157,25 @@ class RelationshipPlugin(Star):
         if "【好友申请】" not in text and "【群邀请】" not in text:
             yield event.plain_result("需引用一条好友申请或群邀请")
             return
+        
+        # 解析文本为结构化数据
+        request_data = parse_request_from_text(text)
+        if not request_data:
+            yield event.plain_result("无法解析申请信息，请确保引用的是正确的申请消息")
+            return
+        
         reply = await handle_add_request(
-            client=event.bot, info=text, approve=True, extra=extra
+            client=event.bot, request_data=request_data, approve=True, extra=extra
         )
         if reply:
             yield event.plain_result(reply)
-        group_id = event.get_group_id()
-        if group_id in self.config["group_blacklist"]:
-            self.config["group_blacklist"].remove(group_id)
-            self.config.save_config()
+        
+        # 如果是群邀请且群在黑名单中，移出黑名单
+        if isinstance(request_data, GroupInvite):
+            group_id = request_data.group_id
+            if group_id in self.config["group_blacklist"]:
+                self.config["group_blacklist"].remove(group_id)
+                self.config.save_config()
 
     @filter.permission_type(PermissionType.ADMIN)
     @filter.command("拒绝")
@@ -172,8 +185,15 @@ class RelationshipPlugin(Star):
         if "【好友申请】" not in text and "【群邀请】" not in text:
             yield event.plain_result("需引用一条好友申请或群邀请")
             return
+        
+        # 解析文本为结构化数据
+        request_data = parse_request_from_text(text)
+        if not request_data:
+            yield event.plain_result("无法解析申请信息，请确保引用的是正确的申请消息")
+            return
+        
         reply = await handle_add_request(
-            client=event.bot, info=text, approve=False, extra=extra
+            client=event.bot, request_data=request_data, approve=False, extra=extra
         )
         if reply:
             yield event.plain_result(reply)
