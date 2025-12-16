@@ -1,5 +1,4 @@
 import random
-import re
 from typing import Any
 
 from aiocqhttp import CQHttp
@@ -10,7 +9,7 @@ from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
     AiocqhttpMessageEvent,
 )
 
-from .utils import get_ats, get_reply_text
+from .utils import get_ats, get_reply_text, parse_multi_input
 
 
 class ForwardHandle:
@@ -133,42 +132,52 @@ class ForwardHandle:
     ):
         """
         抽查指定群或用户的消息
-        :param event: 消息事件
-        :param target: 目标群或用户
-        :param count: 抽查数量
+        支持：
+        - @用户
+        - 群序号（来自群列表）
+        - 群号 / QQ
         """
         client = event.bot
-        sgid = None
-        suid = None
+        sgid: int | None = None
+        suid: int | None = None
         count = count or self.config["msg_check_count"]
 
-        # 尝试从At组件获取用户ID
-        at_ids = get_ats(event, noself=True)
-        suid = int(at_ids[0]) if at_ids else None
+        # 1.优先：@ 用户
+        if at_ids := get_ats(event, noself=True):
+            suid = int(at_ids[0])
 
-        # 第二个参数 or 引用的文本
-        text = str(target or get_reply_text(event) or "")
-
-        # 尝试从文本中获取用户ID
+        # 2.文本解析（复用 parse_multi_input）
         if not suid:
-            if m_user := re.search(r"@(\d+)", text):
-                suid = int(m_user.group(1))
-        # 尝试从文本中获取群ID
-        if not suid:
-            if m_group := re.search(r"\d{5,10}", text):
-                sgid = int(m_group.group(0))
+            raw = str(target or get_reply_text(event) or "").strip()
 
-        # 随机选一个群ID
+            # 先解析可能的序号 / ID
+            group_list = await client.get_group_list()
+            indexes, ids = parse_multi_input(raw, total=len(group_list))
+
+            # 2.1 序号 → 群
+            if indexes:
+                idx = min(indexes)
+                sgid = int(group_list[idx]["group_id"])
+
+            # 2.2 明确 ID 视为群号
+            elif ids:
+                value = next(iter(ids))
+                if value.isdigit():
+                    sgid = int(value)
+
+        # 3.兜底：随机群
         if not sgid and not suid:
             group_list = await client.get_group_list()
             if not group_list:
                 yield event.plain_result("未找到可用的群聊或用户，无法进行抽查")
                 return
-            sgid = random.choice(group_list)["group_id"]
+            sgid = int(random.choice(group_list)["group_id"])
 
+        # 执行抽查
         logger.debug(
-            f"正在抽查{f'群({sgid})' if sgid else f'用户({suid})'}的{count}条聊天记录..."
+            f"正在抽查{f'群({sgid})' if sgid else f'用户({suid})'}的 {count} 条聊天记录..."
         )
+
         try:
             await self.source_forward(
                 client=client,

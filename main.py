@@ -90,7 +90,7 @@ class RelationshipPlugin(Star):
         await self.normal.set_group_leave(event)
 
     @filter.permission_type(PermissionType.ADMIN)
-    @filter.command("删了", alias={"删除好友"})
+    @filter.command("删好友", alias={"删除好友"})
     async def delete_friend(self, event: AiocqhttpMessageEvent):
         """删好友 <@昵称|QQ|序号|区间> [可批量]"""
         await self.normal.delete_friend(event)
