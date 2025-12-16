@@ -129,3 +129,5 @@ class NormalHandle:
             msgs.append(f"已删除好友：{f['nickname']}({uid})")
 
         await event.send(event.plain_result("\n".join(msgs)))
+
+

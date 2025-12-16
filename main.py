@@ -24,7 +24,7 @@ class RelationshipPlugin(Star):
             "",
         )
         # 审批员
-        self.manage_users = config["manage_users"]
+        self.manage_users: list[str] = config["manage_users"]
         if self.admin_id not in self.manage_users:
             self.manage_users.append(self.admin_id)
             self.config.save_config()
@@ -109,6 +109,18 @@ class RelationshipPlugin(Star):
     async def refuse(self, event: AiocqhttpMessageEvent, extra: str = ""):
         """拒绝好友申请或群邀请"""
         await self.request.refuse(event, extra)
+
+    @filter.command("加审批员")
+    async def append_manage_user(self, event: AiocqhttpMessageEvent):
+        """加审批员@某人"""
+        async for msg in self.request.append_manage_user(event):
+            yield msg
+
+    @filter.command("减审批员")
+    async def remove_manage_user(self, event: AiocqhttpMessageEvent):
+        """减审批员@某人"""
+        async for msg in self.request.remove_manage_user(event):
+            yield msg
 
     @filter.event_message_type(filter.EventMessageType.GROUP_MESSAGE)
     async def on_notice(self, event: AiocqhttpMessageEvent):

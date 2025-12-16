@@ -154,3 +154,4 @@ def parse_multi_input(raw: str, total: int) -> tuple[set[int], set[str]]:
                 ids.add(token)
 
     return indexes, ids
+

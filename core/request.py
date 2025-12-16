@@ -9,7 +9,7 @@ from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
     AiocqhttpMessageEvent,
 )
 
-from .utils import get_reply_text
+from .utils import get_ats, get_nickname, get_reply_text
 
 try:
     from ..afdian import afdian_verify
@@ -281,6 +281,7 @@ class RequestHandle:
     ):
         self.plugin = plugin
         self.config = config
+        self.manage_users: list[str] = config["manage_users"]
 
     async def event_monitoring(self, event: AiocqhttpMessageEvent):
         """监听好友申请或群邀请"""
@@ -340,3 +341,38 @@ class RequestHandle:
         )
         if reply:
             await event.send(event.plain_result(reply))
+
+
+    async def append_manage_user(self, event: AiocqhttpMessageEvent):
+        """添加审批员"""
+        at_ids = get_ats(event)
+        if not at_ids:
+            yield event.plain_result("需@要添加的审批员")
+            return
+        for at_id in at_ids:
+            nickname = await get_nickname(
+                client=event.bot, group_id=event.get_group_id(), user_id=at_id
+            )
+            if at_id in self.manage_users:
+                yield event.plain_result(f"{nickname}已在审批员列表中")
+                continue
+            self.manage_users.append(at_id)
+            yield event.plain_result(f"已添加审批员: {nickname}")
+        self.config.save_config()
+
+    async def remove_manage_user(self, event: AiocqhttpMessageEvent):
+        """移除审批员"""
+        at_ids = get_ats(event)
+        if not at_ids:
+            yield event.plain_result("需@要移除的审批员")
+            return
+        for at_id in at_ids:
+            nickname = await get_nickname(
+                client=event.bot, group_id=event.get_group_id(), user_id=at_id
+            )
+            if at_id not in self.manage_users:
+                yield event.plain_result(f"{nickname}不在审批员列表中")
+                continue
+            self.manage_users.remove(at_id)
+            yield event.plain_result(f"已移除审批员: {nickname}")
+        self.config.save_config()
