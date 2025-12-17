@@ -39,7 +39,7 @@
     },
     "max_group_capacity": {
         "description": "Bot的最大群容量",
-        "hint": "Bot加的群若超过此容量将自动退群，可有效防止被拉进太多群。 但审批员拉群不受此限制。设为 0 则不限制群容量",
+        "hint": "Bot加的群若超过此容量将自动退群，可有效防止被拉进太多群。 但审批员拉群不受此限制",
         "type": "int",
         "slider": {
             "min": 0,
@@ -50,12 +50,12 @@
     },
     "group_blacklist": {
         "description": "群聊黑名单",
-        "hint": "群聊黑名单，bot被踢时自动拉黑对应群聊，bot将不会再加入这些群",
+        "hint": "群聊黑名单，bot被踢时自动拉黑对应群聊，bot将不会再加入这些群。但审批员拉群不受此限制。",
         "type": "list"
     },
     "mutual_blacklist": {
         "description": "互斥成员",
-        "hint": "互斥成员，bot加入群时，若群内有这些成员，bot将自动退群",
+        "hint": "互斥成员，bot加入群时，若群内有这些成员，bot将自动退群。但审批员拉群不受此限制。",
         "type": "list"
     },
     "auto_check_messages": {
