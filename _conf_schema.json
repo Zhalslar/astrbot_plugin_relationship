@@ -26,6 +26,13 @@
         "type": "bool",
         "default": false
     },
+    "min_group_size": {
+        "description": "拉群最小群人数",
+        "hint": "固定值，不显示",
+        "type": "int",
+        "default": 50,
+        "invisible": true
+    },
     "max_group_size": {
         "description": "拉群最大群人数",
         "hint": "Bot加的群人数若大于此值将自动退群, 可防止被乱拉进千人大群, 但审批员拉群不受此限制",

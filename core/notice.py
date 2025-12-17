@@ -313,17 +313,16 @@ class NoticeDecisionService:
         result.leave_group = True
         return True
 
-    async def _check_group_size(
-        self, result: NoticeResult, ctx: dict, min_size: int = 50
-    ) -> bool:
+    async def _check_group_size(self, result: NoticeResult, ctx: dict) -> bool:
         """
         返回 True 表示已触发退群，不再继续后续检查
         """
         # 取当前群人数
-        members = await self.client.get_group_member_list(
-            group_id=int(self.msg.group_id)
+        group_info = await self.client.get_group_info(
+            group_id=int(self.msg.group_id), no_cache=True
         )
-        member_count = len(members)
+        member_count = group_info.get("member_count", 0)
+        min_size = self.config["min_group_size"]
 
         # 1. 小群限制
         if self.config["block_small_group"] and member_count <= min_size:
