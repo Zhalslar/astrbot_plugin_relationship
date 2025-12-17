@@ -1,3 +1,4 @@
+import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -21,6 +22,10 @@ except ImportError:
 if TYPE_CHECKING:
     from ..main import RelationshipPlugin
 
+def _pick_val(line: str) -> str:
+    """中文或英文冒号都可以，取后半部分，没有就返回空"""
+    _, _, right = re.split(r"[:：]", line, maxsplit=1)
+    return right.strip()
 
 @dataclass
 class FriendRequest:
@@ -45,29 +50,25 @@ class FriendRequest:
     def from_display_text(cls, text: str) -> "FriendRequest | None":
         if "【好友申请】" not in text:
             return None
-
-        lines = [line.strip() for line in text.split("\n") if line.strip()]
-        if len(lines) < 4:
-            return None
-
-        try:
-
-            def value(line: str) -> str:
-                return line.split("：", 1)[1]
-
-            nickname = value(lines[1])  # 昵称
-            user_id = value(lines[2])  # QQ号
-            flag = value(lines[3])  # flag
-            comment = value(lines[4]) if len(lines) >= 5 else "无"
-
+        lines = [li.strip() for li in text.splitlines() if li.strip()]
+        data = {}
+        for line in lines:
+            if (
+                line.startswith("昵称")
+                or line.startswith("QQ号")
+                or line.startswith("flag")
+                or line.startswith("验证信息")
+            ):
+                data[line[:2]] = _pick_val(line)  # 取前两个字当 key
+        # 只要拿到三个核心字段就算成功
+        if {"昵称", "QQ号", "flag"} <= data.keys():
             return cls(
-                nickname=nickname,
-                user_id=user_id,
-                flag=flag,
-                comment=comment,
+                nickname=data["昵称"],
+                user_id=data["QQ号"],
+                flag=data["flag"],
+                comment=data.get("验证信息", "无"),
             )
-        except (IndexError, ValueError):
-            return None
+        return None
 
 
 @dataclass
@@ -97,33 +98,23 @@ class GroupInvite:
     def from_display_text(cls, text: str) -> "GroupInvite | None":
         if "【群邀请】" not in text:
             return None
-
-        lines = [line.strip() for line in text.split("\n") if line.strip()]
-        if len(lines) < 6:
-            return None
-
-        try:
-
-            def value(line: str) -> str:
-                return line.split("：", 1)[1]
-
-            inviter_nickname = value(lines[1])
-            inviter_id = value(lines[2])
-            group_name = value(lines[3])
-            group_id = value(lines[4])
-            flag = value(lines[5])
-            comment = value(lines[6]) if len(lines) >= 7 else "无"
-
+        lines = [li.strip() for li in text.splitlines() if li.strip()]
+        data = {}
+        for line in lines:
+            if re.match(r"(邀请人昵称|邀请人QQ|群名称|群号|flag|验证信息)", line):
+                key = re.split(r"[:：]", line)[0]
+                data[key] = _pick_val(line)
+        need = {"邀请人昵称", "邀请人QQ", "群名称", "群号", "flag"}
+        if need <= data.keys():
             return cls(
-                inviter_nickname=inviter_nickname,
-                inviter_id=inviter_id,
-                group_name=group_name,
-                group_id=group_id,
-                flag=flag,
-                comment=comment,
+                inviter_nickname=data["邀请人昵称"],
+                inviter_id=data["邀请人QQ"],
+                group_name=data["群名称"],
+                group_id=data["群号"],
+                flag=data["flag"],
+                comment=data.get("验证信息", "无"),
             )
-        except (IndexError, ValueError):
-            return None
+        return None
 
 
 def parse_request_from_text(text: str):
