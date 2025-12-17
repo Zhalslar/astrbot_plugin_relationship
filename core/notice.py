@@ -103,6 +103,14 @@ class NoticeDecisionService:
             "suffix": "\n检测到群内存在互斥成员 {member_name}({member_id})，这群我退了",
             "operator": "我不想和{member_name}({member_id})在同一个群里，退了",
         },
+        "invited_small_group": {
+            "suffix": "\n群人数 {member_count} ≤ {min_size}，小群我退了",
+            "operator": "小群不加，人数 {member_count} ≤ {min_size}",
+        },
+        "invited_large_group": {
+            "suffix": "\n群人数 {member_count} > {max_size}，大群我退了",
+            "operator": "大群不加，人数 {member_count} > {max_size}",
+        },
     }
 
     def __init__(
@@ -225,13 +233,17 @@ class NoticeDecisionService:
 
         result.admin_reply = self._reply("invited", **ctx)
 
-        if await self._check_blacklist(result, ctx):
-            return
-        if await self._check_capacity(result, ctx):
-            return
-        if await self._check_mutual_blacklist(result, ctx):
-            return
-
+        # 审批员拉群直接放行，其余人按规则过滤
+        if self.msg.operator_id not in self.config["manage_users"]:
+            if await self._check_blacklist(result, ctx):
+                return
+            if await self._check_group_size(result, ctx):
+                return
+            if await self._check_capacity(result, ctx):
+                return
+            if await self._check_mutual_blacklist(result, ctx):
+                return
+        # 走到这里说明要么审批员拉群，要么全部检查通过
         result.delay_check = True
 
     # ----------------
@@ -301,16 +313,61 @@ class NoticeDecisionService:
         result.leave_group = True
         return True
 
+    async def _check_group_size(
+        self, result: NoticeResult, ctx: dict, min_size: int = 50
+    ) -> bool:
+        """
+        返回 True 表示已触发退群，不再继续后续检查
+        """
+        # 取当前群人数
+        members = await self.client.get_group_member_list(
+            group_id=int(self.msg.group_id)
+        )
+        member_count = len(members)
+
+        # 1. 小群限制
+        if self.config["block_small_group"] and member_count <= min_size:
+            result.admin_reply += self._suffix(
+                "invited_small_group",
+                member_count=member_count,
+                min_size=min_size,
+                **ctx,
+            )
+            result.operator_reply = self._reply(
+                "invited_small_group",
+                "operator",
+                member_count=member_count,
+                min_size=min_size,
+            )
+            result.leave_group = True
+            return True
+
+        # 2. 大群限制
+        max_size = self.config["max_group_size"]
+        if max_size and member_count > max_size:
+            result.admin_reply += self._suffix(
+                "invited_large_group",
+                member_count=member_count,
+                max_size=max_size,
+                **ctx,
+            )
+            result.operator_reply = self._reply(
+                "invited_large_group",
+                "operator",
+                member_count=member_count,
+                max_size=max_size,
+            )
+            result.leave_group = True
+            return True
+
+        return False
+
 
 # =========================
 # 应用层（唯一入口）
 # =========================
 class NoticeHandle:
-    def __init__(
-        self,
-        plugin: "RelationshipPlugin",
-        config: AstrBotConfig
-    ):
+    def __init__(self, plugin: "RelationshipPlugin", config: AstrBotConfig):
         self.plugin = plugin
         self.config = config
 
