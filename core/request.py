@@ -282,6 +282,7 @@ class RequestHandle:
                 client=event.bot, raw_message=raw_message, config=self.config
             )
             if user_reply:
+                event.message_obj.group_id = ""
                 await event.send(event.plain_result(user_reply))
             if admin_reply:
                 await self.plugin.manage_send(event, admin_reply)
