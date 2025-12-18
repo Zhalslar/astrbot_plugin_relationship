@@ -186,9 +186,9 @@ async def monitor_add_request(
             )
             admin_reply += "\nAfdian_verify: approved!"
         else:
-            if config["manager_group"]:
+            if config["manage_group"]:
                 user_reply = (
-                    f"想加好友或拉群？要等审核群{config['manager_group']}审批哟"
+                    f"想加好友或拉群？要等审核群{config['manage_group']}审批哟"
                 )
             else:
                 user_reply = "想加好友或拉群？要等审核通过哦"
