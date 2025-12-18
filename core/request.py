@@ -24,8 +24,8 @@ if TYPE_CHECKING:
 
 def _pick_val(line: str) -> str:
     """中文或英文冒号都可以，取后半部分，没有就返回空"""
-    _, _, right = re.split(r"[:：]", line, maxsplit=1)
-    return right.strip()
+    parts = re.split(r"[:：]", line, maxsplit=1)
+    return parts[-1] if parts else ""
 
 @dataclass
 class FriendRequest:
@@ -59,8 +59,8 @@ class FriendRequest:
                 or line.startswith("flag")
                 or line.startswith("验证信息")
             ):
-                data[line[:2]] = _pick_val(line)  # 取前两个字当 key
-        # 只要拿到三个核心字段就算成功
+                key = re.split(r'[:：]', line, 1)[0].strip()   # 整段前缀当 key
+                data[key] = _pick_val(line)
         if {"昵称", "QQ号", "flag"} <= data.keys():
             return cls(
                 nickname=data["昵称"],
