@@ -27,7 +27,7 @@ class FriendRequest:
     """好友申请数据类"""
 
     nickname: str
-    user_id: int
+    user_id: str
     flag: str
     comment: str
 
@@ -74,9 +74,9 @@ class FriendRequest:
 @dataclass
 class GroupRequest:
     inviter_nickname: str
-    inviter_id: int
+    inviter_id: str
     group_name: str
-    group_id: int
+    group_id: str
     flag: str
     comment: str
 
@@ -159,7 +159,7 @@ async def monitor_add_request(
     if raw_message.get("request_type") == "friend":
         request_data = FriendRequest(
             nickname=nickname,
-            user_id=user_id,
+            user_id=str(user_id),
             flag=flag,
             comment=comment,
         )
@@ -187,7 +187,7 @@ async def monitor_add_request(
 
         request_data = GroupRequest(
             inviter_nickname=nickname,
-            inviter_id=user_id,
+            inviter_id=str(user_id),
             group_name=group_name,
             group_id=group_id,
             flag=flag,
@@ -238,7 +238,7 @@ async def handle_add_request(
     if isinstance(request_data, FriendRequest):
         # 处理好友申请
         friend_list = await client.get_friend_list()
-        uids = [f["user_id"] for f in friend_list]
+        uids = [str(f["user_id"]) for f in friend_list]
         if request_data.user_id in uids:
             return f"【{request_data.nickname}】已经是我的好友啦"
 
@@ -260,8 +260,8 @@ async def handle_add_request(
     elif isinstance(request_data, GroupRequest):
         # 处理群邀请
         group_list = await client.get_group_list()
-        gids = [g["group_id"] for g in group_list]
-        if request_data.group_id in gids:
+        gids = [str(g["group_id"]) for g in group_list]
+        if str(request_data.group_id) in gids:
             return f"我已经在【{request_data.group_name}】里啦"
 
         try:
@@ -301,11 +301,11 @@ class RequestHandle:
                 try:
                     if isinstance(request_data, FriendRequest):
                         await event.bot.send_private_msg(
-                            user_id=request_data.user_id, message=user_reply
+                            user_id=int(request_data.user_id), message=user_reply
                         )
                     elif isinstance(request_data, GroupRequest):
                         await event.bot.send_group_msg(
-                            group_id=request_data.group_id, message=user_reply
+                            group_id=int(request_data.group_id), message=user_reply
                         )
                 except ActionFailed as e:
                     logger.warning(f"用户回执发送失败（可能未加好友或不在群内）: {e}")
@@ -334,7 +334,7 @@ class RequestHandle:
 
         # 如果是群邀请且群在黑名单中，移出黑名单
         if isinstance(request_data, GroupRequest):
-            group_id = request_data.group_id
+            group_id = str(request_data.group_id)
             if group_id in self.config["group_blacklist"]:
                 self.config["group_blacklist"].remove(group_id)
                 self.config.save_config()
