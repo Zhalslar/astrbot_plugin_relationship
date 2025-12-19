@@ -1,4 +1,3 @@
-
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -22,12 +21,13 @@ except ImportError:
 if TYPE_CHECKING:
     from ..main import RelationshipPlugin
 
+
 @dataclass
 class FriendRequest:
     """好友申请数据类"""
 
     nickname: str
-    user_id: str
+    user_id: int
     flag: str
     comment: str
 
@@ -72,11 +72,11 @@ class FriendRequest:
 
 
 @dataclass
-class GroupInvite:
+class GroupRequest:
     inviter_nickname: str
-    inviter_id: str
+    inviter_id: int
     group_name: str
-    group_id: str
+    group_id: int
     flag: str
     comment: str
 
@@ -98,7 +98,7 @@ class GroupInvite:
         return "\n".join(lines)
 
     @classmethod
-    def from_display_text(cls, text: str) -> "GroupInvite | None":
+    def from_display_text(cls, text: str) -> "GroupRequest | None":
         if cls.HEADER not in text:
             return None
 
@@ -123,15 +123,16 @@ class GroupInvite:
 
 
 def parse_request_from_text(text: str):
-    for cls in (FriendRequest, GroupInvite):
+    for cls in (FriendRequest, GroupRequest):
         obj = cls.from_display_text(text)
         if obj:
             return obj
     return None
 
+
 async def monitor_add_request(
     client: CQHttp, raw_message: dict, config: AstrBotConfig
-) -> tuple[str, str, FriendRequest | GroupInvite | None]:
+) -> tuple[str, str, FriendRequest | GroupRequest | None]:
     """监听好友申请或群邀请
 
     Returns:
@@ -139,10 +140,10 @@ async def monitor_add_request(
             (admin_reply, user_reply, request_data)
     """
     admin_reply, user_reply = "", ""
-    request_data: FriendRequest | GroupInvite | None = None
+    request_data: FriendRequest | GroupRequest | None = None
 
     user_id: int = raw_message.get("user_id", 0)
-    info = await client.get_stranger_info(user_id=int(user_id))
+    info = await client.get_stranger_info(user_id=int(user_id)) or {}
     nickname = info.get("nickname") or "未知昵称"
     comment: str = raw_message.get("comment") or "无"
     flag = raw_message.get("flag", "")
@@ -158,17 +159,19 @@ async def monitor_add_request(
     if raw_message.get("request_type") == "friend":
         request_data = FriendRequest(
             nickname=nickname,
-            user_id=str(user_id),
+            user_id=user_id,
             flag=flag,
             comment=comment,
         )
         admin_reply = request_data.to_display_text()
 
         if afdian_approve:
-            await client.set_friend_add_request(flag=flag, approve=True)
-            admin_reply += "\nAfdian_verify: approved!"
+            try:
+                await client.set_friend_add_request(flag=flag, approve=True)
+                admin_reply += "\nAfdian_verify: approved!"
+            except ActionFailed as e:
+                logger.warning(f"自动审批好友失败: {e}")
         else:
-            # ✅ 好友申请必须给用户反馈
             user_reply = "好友申请已收到，正在审核中，请耐心等待"
 
     # ─────────────────────────────
@@ -182,23 +185,25 @@ async def monitor_add_request(
         group_info = await client.get_group_info(group_id=group_id)
         group_name = group_info.get("group_name") or "未知群名"
 
-        request_data = GroupInvite(
+        request_data = GroupRequest(
             inviter_nickname=nickname,
-            inviter_id=str(user_id),
+            inviter_id=user_id,
             group_name=group_name,
-            group_id=str(group_id),
+            group_id=group_id,
             flag=flag,
             comment=comment,
         )
         admin_reply = request_data.to_display_text()
 
         if afdian_approve:
-            await client.set_group_add_request(
-                flag=flag, sub_type="invite", approve=True
-            )
-            admin_reply += "\nAfdian_verify: approved!"
+            try:
+                await client.set_group_add_request(
+                    flag=flag, sub_type="invite", approve=True
+                )
+                admin_reply += "\nAfdian_verify: approved!"
+            except ActionFailed as e:
+                logger.warning(f"自动审批群邀请失败: {e}")
         else:
-            # ✅ 群邀请专用话术
             if config["manage_group"]:
                 user_reply = f"群邀请已收到，需要在审核群 {config['manage_group']} 审批后才能加入"
             else:
@@ -215,7 +220,7 @@ async def monitor_add_request(
 
 async def handle_add_request(
     client: CQHttp,
-    request_data: FriendRequest | GroupInvite,
+    request_data: FriendRequest | GroupRequest,
     approve: bool,
     extra: str = "",
 ) -> str | None:
@@ -233,7 +238,7 @@ async def handle_add_request(
     if isinstance(request_data, FriendRequest):
         # 处理好友申请
         friend_list = await client.get_friend_list()
-        uids = [str(f["user_id"]) for f in friend_list]
+        uids = [f["user_id"] for f in friend_list]
         if request_data.user_id in uids:
             return f"【{request_data.nickname}】已经是我的好友啦"
 
@@ -252,10 +257,10 @@ async def handle_add_request(
         except Exception as e:
             return f"这条申请处理过了或者格式不对：{str(e)}"
 
-    elif isinstance(request_data, GroupInvite):
+    elif isinstance(request_data, GroupRequest):
         # 处理群邀请
         group_list = await client.get_group_list()
-        gids = [str(f["group_id"]) for f in group_list]
+        gids = [g["group_id"] for g in group_list]
         if request_data.group_id in gids:
             return f"我已经在【{request_data.group_name}】里啦"
 
@@ -292,9 +297,18 @@ class RequestHandle:
             admin_reply, user_reply, request_data = await monitor_add_request(
                 client=event.bot, raw_message=raw, config=self.config
             )
-            user_id: int | None  = raw.get("user_id")
-            if user_id and user_reply:
-                await event.bot.send_private_msg(user_id=user_id, message=user_reply)
+            if user_reply and request_data:
+                try:
+                    if isinstance(request_data, FriendRequest):
+                        await event.bot.send_private_msg(
+                            user_id=request_data.user_id, message=user_reply
+                        )
+                    elif isinstance(request_data, GroupRequest):
+                        await event.bot.send_group_msg(
+                            group_id=request_data.group_id, message=user_reply
+                        )
+                except ActionFailed as e:
+                    logger.warning(f"用户回执发送失败（可能未加好友或不在群内）: {e}")
             if admin_reply:
                 await self.plugin.manage_send(event, admin_reply)
             logger.info(f"收到好友申请或群邀请: {raw}")
@@ -319,7 +333,7 @@ class RequestHandle:
             await event.send(event.plain_result(reply))
 
         # 如果是群邀请且群在黑名单中，移出黑名单
-        if isinstance(request_data, GroupInvite):
+        if isinstance(request_data, GroupRequest):
             group_id = request_data.group_id
             if group_id in self.config["group_blacklist"]:
                 self.config["group_blacklist"].remove(group_id)
@@ -344,7 +358,6 @@ class RequestHandle:
         )
         if reply:
             await event.send(event.plain_result(reply))
-
 
     async def append_manage_user(self, event: AiocqhttpMessageEvent):
         """添加审批员"""
