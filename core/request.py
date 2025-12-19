@@ -1,4 +1,4 @@
-import re
+
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -22,11 +22,6 @@ except ImportError:
 if TYPE_CHECKING:
     from ..main import RelationshipPlugin
 
-def _pick_val(line: str) -> str:
-    """中文或英文冒号都可以，取后半部分，没有就返回空"""
-    parts = re.split(r"[:：]", line, maxsplit=1)
-    return parts[-1] if parts else ""
-
 @dataclass
 class FriendRequest:
     """好友申请数据类"""
@@ -36,45 +31,48 @@ class FriendRequest:
     flag: str
     comment: str
 
+    HEADER = "【好友申请】同意/拒绝:"
+
+    FIELD_MAP = {
+        "昵称": "nickname",
+        "QQ号": "user_id",
+        "flag": "flag",
+        "验证信息": "comment",
+    }
+
     def to_display_text(self) -> str:
-        """转换为展示文本"""
-        return (
-            f"【好友申请】同意吗：\n"
-            f"昵称：{self.nickname}\n"
-            f"QQ号：{self.user_id}\n"
-            f"flag：{self.flag}\n"
-            f"验证信息：{self.comment}"
-        )
+        lines = [self.HEADER]
+        for cn, field in self.FIELD_MAP.items():
+            lines.append(f"{cn}：{getattr(self, field)}")
+        return "\n".join(lines)
 
     @classmethod
     def from_display_text(cls, text: str) -> "FriendRequest | None":
-        if "【好友申请】" not in text:
+        if cls.HEADER not in text:
             return None
-        lines = [li.strip() for li in text.splitlines() if li.strip()]
-        data = {}
-        for line in lines:
-            if (
-                line.startswith("昵称")
-                or line.startswith("QQ号")
-                or line.startswith("flag")
-                or line.startswith("验证信息")
-            ):
-                key = re.split(r'[:：]', line, 1)[0].strip()   # 整段前缀当 key
-                data[key] = _pick_val(line)
-        if {"昵称", "QQ号", "flag"} <= data.keys():
-            return cls(
-                nickname=data["昵称"],
-                user_id=data["QQ号"],
-                flag=data["flag"],
-                comment=data.get("验证信息", "无"),
-            )
-        return None
+
+        kwargs = {}
+        for line in text.splitlines():
+            line = line.strip()
+            if "：" not in line:
+                continue
+
+            key, _, val = line.partition("：")
+            field = cls.FIELD_MAP.get(key)
+            if field:
+                kwargs[field] = val.strip()
+
+        # comment 可缺省，其余必须存在
+        required = set(cls.FIELD_MAP.values()) - {"comment"}
+        if not required <= kwargs.keys():
+            return None
+
+        kwargs.setdefault("comment", "无")
+        return cls(**kwargs)
 
 
 @dataclass
 class GroupInvite:
-    """群邀请数据类"""
-
     inviter_nickname: str
     inviter_id: str
     group_name: str
@@ -82,39 +80,46 @@ class GroupInvite:
     flag: str
     comment: str
 
+    FIELD_MAP = {
+        "邀请人昵称": "inviter_nickname",
+        "邀请人QQ": "inviter_id",
+        "群名称": "group_name",
+        "群号": "group_id",
+        "flag": "flag",
+        "验证信息": "comment",
+    }
+
+    HEADER = "【群邀请】同意/拒绝:"
+
     def to_display_text(self) -> str:
-        """转换为展示文本"""
-        return (
-            f"【群邀请】同意吗\n"
-            f"邀请人昵称：{self.inviter_nickname}\n"
-            f"邀请人QQ：{self.inviter_id}\n"
-            f"群名称：{self.group_name}\n"
-            f"群号：{self.group_id}\n"
-            f"flag：{self.flag}\n"
-            f"验证信息：{self.comment}"
-        )
+        lines = [self.HEADER]
+        for cn, field in self.FIELD_MAP.items():
+            lines.append(f"{cn}：{getattr(self, field)}")
+        return "\n".join(lines)
 
     @classmethod
     def from_display_text(cls, text: str) -> "GroupInvite | None":
-        if "【群邀请】" not in text:
+        if cls.HEADER not in text:
             return None
-        lines = [li.strip() for li in text.splitlines() if li.strip()]
-        data = {}
-        for line in lines:
-            if re.match(r"(邀请人昵称|邀请人QQ|群名称|群号|flag|验证信息)", line):
-                key = re.split(r"[:：]", line)[0]
-                data[key] = _pick_val(line)
-        need = {"邀请人昵称", "邀请人QQ", "群名称", "群号", "flag"}
-        if need <= data.keys():
-            return cls(
-                inviter_nickname=data["邀请人昵称"],
-                inviter_id=data["邀请人QQ"],
-                group_name=data["群名称"],
-                group_id=data["群号"],
-                flag=data["flag"],
-                comment=data.get("验证信息", "无"),
-            )
-        return None
+
+        kwargs = {}
+        for line in text.splitlines():
+            line = line.strip()
+            if "：" not in line:
+                continue
+
+            key, _, val = line.partition("：")
+            field = cls.FIELD_MAP.get(key)
+            if field:
+                kwargs[field] = val.strip()
+
+        # comment 允许缺省，其余必须齐全
+        required = set(cls.FIELD_MAP.values()) - {"comment"}
+        if not required <= kwargs.keys():
+            return None
+
+        kwargs.setdefault("comment", "无")
+        return cls(**kwargs)
 
 
 def parse_request_from_text(text: str):
@@ -123,7 +128,6 @@ def parse_request_from_text(text: str):
         if obj:
             return obj
     return None
-
 
 async def monitor_add_request(
     client: CQHttp, raw_message: dict, config: AstrBotConfig
@@ -138,9 +142,8 @@ async def monitor_add_request(
     request_data: FriendRequest | GroupInvite | None = None
 
     user_id: int = raw_message.get("user_id", 0)
-    nickname: str = (await client.get_stranger_info(user_id=int(user_id)))[
-        "nickname"
-    ] or "未知昵称"
+    info = await client.get_stranger_info(user_id=int(user_id))
+    nickname = info.get("nickname") or "未知昵称"
     comment: str = raw_message.get("comment") or "无"
     flag = raw_message.get("flag", "")
 
@@ -149,26 +152,35 @@ async def monitor_add_request(
     if _AFDIAN_OK and afdian_verify(remark=str(user_id)):
         afdian_approve = True
 
-    # 加好友事件
+    # ─────────────────────────────
+    # 好友申请
+    # ─────────────────────────────
     if raw_message.get("request_type") == "friend":
         request_data = FriendRequest(
-            nickname=nickname, user_id=str(user_id), flag=flag, comment=comment
+            nickname=nickname,
+            user_id=str(user_id),
+            flag=flag,
+            comment=comment,
         )
         admin_reply = request_data.to_display_text()
 
         if afdian_approve:
             await client.set_friend_add_request(flag=flag, approve=True)
             admin_reply += "\nAfdian_verify: approved!"
+        else:
+            # ✅ 好友申请必须给用户反馈
+            user_reply = "好友申请已收到，正在审核中，请耐心等待"
 
-    # 群邀请事件
+    # ─────────────────────────────
+    # 群邀请
+    # ─────────────────────────────
     elif (
         raw_message.get("request_type") == "group"
         and raw_message.get("sub_type") == "invite"
     ):
         group_id = raw_message.get("group_id", 0)
-        group_name = (await client.get_group_info(group_id=group_id))[
-            "group_name"
-        ] or "未知群名"
+        group_info = await client.get_group_info(group_id=group_id)
+        group_name = group_info.get("group_name") or "未知群名"
 
         request_data = GroupInvite(
             inviter_nickname=nickname,
@@ -186,18 +198,17 @@ async def monitor_add_request(
             )
             admin_reply += "\nAfdian_verify: approved!"
         else:
+            # ✅ 群邀请专用话术
             if config["manage_group"]:
-                user_reply = (
-                    f"想加好友或拉群？要等审核群{config['manage_group']}审批哟"
-                )
+                user_reply = f"群邀请已收到，需要在审核群 {config['manage_group']} 审批后才能加入"
             else:
-                user_reply = "想加好友或拉群？要等审核通过哦"
+                user_reply = "群邀请已收到，需要审核通过后才能加入"
 
             if str(group_id) in config["group_blacklist"]:
                 admin_reply += (
                     "\n警告: 该群为黑名单群聊，请谨慎通过，若通过则自动移出黑名单"
                 )
-                user_reply += "\n⚠️该群已被列入黑名单，可能不会通过审核。"
+                user_reply += "\n⚠️该群已被列入黑名单，可能不会通过审核"
 
     return admin_reply, user_reply, request_data
 
@@ -282,7 +293,6 @@ class RequestHandle:
                 client=event.bot, raw_message=raw_message, config=self.config
             )
             if user_reply:
-                event.message_obj.group_id = ""
                 await event.send(event.plain_result(user_reply))
             if admin_reply:
                 await self.plugin.manage_send(event, admin_reply)
