@@ -31,7 +31,7 @@ class FriendRequest:
     flag: str
     comment: str
 
-    HEADER = "【好友申请】同意/拒绝:"
+    HEADER = "【好友申请】同意/拒绝："
 
     FIELD_MAP = {
         "昵称": "nickname",
@@ -89,7 +89,7 @@ class GroupRequest:
         "验证信息": "comment",
     }
 
-    HEADER = "【群邀请】同意/拒绝:"
+    HEADER = "【群邀请】同意/拒绝："
 
     def to_display_text(self) -> str:
         lines = [self.HEADER]
