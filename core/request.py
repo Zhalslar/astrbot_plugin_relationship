@@ -287,16 +287,17 @@ class RequestHandle:
 
     async def event_monitoring(self, event: AiocqhttpMessageEvent):
         """监听好友申请或群邀请"""
-        raw_message = getattr(event.message_obj, "raw_message", None)
-        if isinstance(raw_message, dict) and raw_message.get("post_type") == "request":
+        raw = getattr(event.message_obj, "raw_message", None)
+        if isinstance(raw, dict) and raw.get("post_type") == "request":
             admin_reply, user_reply, request_data = await monitor_add_request(
-                client=event.bot, raw_message=raw_message, config=self.config
+                client=event.bot, raw_message=raw, config=self.config
             )
-            if user_reply:
-                await event.send(event.plain_result(user_reply))
+            user_id: int | None  = raw.get("user_id")
+            if user_id and user_reply:
+                await event.bot.send_private_msg(user_id=user_id, message=user_reply)
             if admin_reply:
                 await self.plugin.manage_send(event, admin_reply)
-            logger.info(f"收到好友申请或群邀请: {raw_message}")
+            logger.info(f"收到好友申请或群邀请: {raw}")
 
     async def agree(self, event: AiocqhttpMessageEvent, extra: str = ""):
         """同意好友申请或群邀请"""
