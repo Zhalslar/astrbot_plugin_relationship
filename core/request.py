@@ -280,6 +280,8 @@ class RequestHandle:
     def __init__(self, config: AstrBotConfig):
         self.config = config
         self.manage_users: list[str] = config["manage_users"]
+        self.manage_group = config["manage_group"]
+        self.admin_id = config["admin_id"]
 
     async def event_monitoring(self, event: AiocqhttpMessageEvent):
         """监听好友申请或群邀请"""
@@ -301,13 +303,13 @@ class RequestHandle:
                 except ActionFailed as e:
                     logger.warning(f"用户回执发送失败（可能未加好友或不在群内）: {e}")
             if admin_reply:
-                if self.config["manage_group"]:
+                if self.manage_group:
                     await event.bot.send_group_msg(
-                        group_id=int(self.config["manage_group"]), message=admin_reply
+                        group_id=int(self.manage_group), message=admin_reply
                     )
-                elif self.config["admin_id"]:
+                elif self.admin_id:
                     await event.bot.send_private_msg(
-                        user_id=int(self.config["admin_id"]), message=admin_reply
+                        user_id=int(self.admin_id), message=admin_reply
                     )
 
     async def agree(self, event: AiocqhttpMessageEvent, extra: str = ""):

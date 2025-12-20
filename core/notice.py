@@ -412,8 +412,8 @@ class NoticeHandle:
             and (result.admin_reply or result.operator_reply)
             and (self.manage_group or self.admin_id)
         ):
-            fgid = int(self.manage_group) if self.manage_group.isdigit() else None
-            fuid = int(self.admin_id) if self.admin_id.isdigit() else None
+            fgid = int(self.manage_group) if self.manage_group else None
+            fuid = int(self.admin_id) if self.admin_id else None
             await self.forward.source_forward(
                 client=event.bot,
                 count=self.config["msg_check_count"],
