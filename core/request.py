@@ -310,8 +310,14 @@ class RequestHandle:
                 except ActionFailed as e:
                     logger.warning(f"用户回执发送失败（可能未加好友或不在群内）: {e}")
             if admin_reply:
-                await self.plugin.manage_send(event, admin_reply)
-            logger.info(f"收到好友申请或群邀请: {raw}")
+                if self.config["manage_group"]:
+                    await event.bot.send_group_msg(
+                        group_id=int(self.config["manage_group"]), message=admin_reply
+                    )
+                elif self.config["admin_id"]:
+                    await event.bot.send_private_msg(
+                        user_id=int(self.config["admin_id"]), message=admin_reply
+                    )
 
     async def agree(self, event: AiocqhttpMessageEvent, extra: str = ""):
         """同意好友申请或群邀请"""
