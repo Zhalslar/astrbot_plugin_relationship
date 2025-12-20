@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
 
 from aiocqhttp import ActionFailed, CQHttp
 
@@ -17,9 +16,6 @@ try:
     _AFDIAN_OK = True
 except ImportError:
     _AFDIAN_OK = False
-
-if TYPE_CHECKING:
-    from ..main import RelationshipPlugin
 
 
 @dataclass
@@ -281,12 +277,7 @@ async def handle_add_request(
 
 
 class RequestHandle:
-    def __init__(
-        self,
-        plugin: "RelationshipPlugin",
-        config: AstrBotConfig,
-    ):
-        self.plugin = plugin
+    def __init__(self, config: AstrBotConfig):
         self.config = config
         self.manage_users: list[str] = config["manage_users"]
 

@@ -52,7 +52,7 @@ class RelationshipPlugin(Star):
     async def initialize(self):
         self.forward = ForwardHandle(self.config)
         self.normal = NormalHandle(self, self.config)
-        self.request = RequestHandle(self, self.config)
+        self.request = RequestHandle(self.config)
         self.notice = NoticeHandle(self.forward, self.config)
 
 
