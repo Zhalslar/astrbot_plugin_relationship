@@ -18,58 +18,43 @@ class RelationshipPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
         self.config = config
-        # bot管理员
-        self.admin_id: str = next(
-            (str(i) for i in context.get_config().get("admins_id", []) if i.isdigit()),
-            "",
-        )
-        # 审批员
-        self.manage_users: list[str] = config["manage_users"]
-        if self.admin_id not in self.manage_users:
-            self.manage_users.append(self.admin_id)
-            self.config.save_config()
-        # 审批群
-        self.manage_group: str = config["manage_group"]
+        self._normalize_config()
 
-        if not self.manage_group and not self.manage_users:
+    def _normalize_config(self) -> None:
+        """保证 ID 都是数字，并把管理员自动加入审批员列表。"""
+        cfg = self.config
+
+        # 1. 管理员 ID 必须是数字
+        admins_id: list[str] = [
+            str(i) for i in self.context.get_config().get("admins_id", []) if str(i).isdigit()
+        ]
+        admin_id: str = admins_id[0] if admins_id else ""
+        cfg["admin_id"] = admin_id
+
+        # 2. 审批员列表去重 + 保证数字
+        manage_users: set[str] = {str(u) for u in cfg.get("manage_users", []) if str(u).isdigit()}
+        if admin_id:                       # 管理员自动加入
+            manage_users.add(admin_id)
+        cfg["manage_users"] = list(manage_users)
+
+        # 3. 审批群号必须是数字
+        manage_group = cfg.get("manage_group", "")
+        if not str(manage_group).isdigit():
+            cfg["manage_group"] = ""
+
+        # 4. 合法性检查（只警告一次）
+        if not cfg["manage_group"] and not cfg["manage_users"]:
             logger.warning("未配置审批群或审批员，将无法发送审批消息")
+
+        # 5. 一次性落盘
+        self.config.save_config()
 
     async def initialize(self):
         self.forward = ForwardHandle(self.config)
         self.normal = NormalHandle(self, self.config)
-        self.request = RequestHandle(self, self.config)
-        self.notice = NoticeHandle(self, self.config)
+        self.request = RequestHandle(self.config)
+        self.notice = NoticeHandle(self.forward, self.config)
 
-    async def manage_send(self, event: AiocqhttpMessageEvent, message: str):
-        """
-        发送回复消息到管理群或bot管理员
-        """
-        if self.manage_group:
-            event.message_obj.group_id = self.manage_group
-        elif self.admin_id:
-            event.message_obj.group_id = ""
-            event.message_obj.sender.user_id = self.admin_id
-        else:
-            event.stop_event()
-            logger.warning("未配置审批群或bot管理员，已跳过消息发送")
-            return
-        await event.send(event.plain_result(message))
-
-    async def manage_source_forward(self, event: AiocqhttpMessageEvent):
-        """抽查消息发给管理群或bot管理员"""
-        if self.manage_group or self.admin_id:
-            fgid = int(self.manage_group) if self.manage_group.isdigit() else None
-            fuid = int(self.admin_id) if self.admin_id.isdigit() else None
-            await self.forward.source_forward(
-                client=event.bot,
-                count=self.config["msg_check_count"],
-                source_group_id=int(event.get_group_id()),
-                source_user_id=int(event.get_sender_id()),
-                forward_group_id=fgid,
-                forward_user_id=fuid,
-            )
-        else:
-            logger.warning("未配置管理群或管理用户, 已跳过消息转发")
 
     @filter.permission_type(PermissionType.ADMIN)
     @filter.command("群列表")

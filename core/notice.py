@@ -1,6 +1,5 @@
 import asyncio
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
 
 from aiocqhttp import CQHttp
 
@@ -10,10 +9,8 @@ from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
     AiocqhttpMessageEvent,
 )
 
+from .forward import ForwardHandle
 from .utils import convert_duration_advanced, get_nickname
-
-if TYPE_CHECKING:
-    from ..main import RelationshipPlugin
 
 
 # =========================
@@ -366,9 +363,11 @@ class NoticeDecisionService:
 # 应用层（唯一入口）
 # =========================
 class NoticeHandle:
-    def __init__(self, plugin: "RelationshipPlugin", config: AstrBotConfig):
-        self.plugin = plugin
+    def __init__(self, forward: ForwardHandle, config: AstrBotConfig):
+        self.forward = forward
         self.config = config
+        self.manage_group = config["manage_group"]
+        self.admin_id = config["admin_id"]
 
     def need_handle(self, msg: NoticeMessage) -> bool:
         return (
@@ -394,16 +393,35 @@ class NoticeHandle:
 
         # 管理者提示
         if result.admin_reply:
-            await self.plugin.manage_send(event, result.admin_reply)
+            if self.manage_group:
+                await event.bot.send_group_msg(
+                    group_id=int(self.manage_group),
+                    message=result.admin_reply,
+                )
+            elif self.admin_id:
+                await event.bot.send_private_msg(
+                    user_id=int(self.admin_id), message=result.admin_reply
+                )
 
         # 延时抽查
         if result.delay_check and self.config["check_delay"]:
             await asyncio.sleep(self.config["check_delay"])
 
-        if self.config["auto_check_messages"] and (
-            result.admin_reply or result.operator_reply
+        if (
+            self.config["auto_check_messages"]
+            and (result.admin_reply or result.operator_reply)
+            and (self.manage_group or self.admin_id)
         ):
-            await self.plugin.manage_source_forward(event)
+            fgid = int(self.manage_group) if self.manage_group else None
+            fuid = int(self.admin_id) if self.admin_id else None
+            await self.forward.source_forward(
+                client=event.bot,
+                count=self.config["msg_check_count"],
+                source_group_id=int(event.get_group_id()),
+                source_user_id=int(event.get_sender_id()),
+                forward_group_id=fgid,
+                forward_user_id=fuid,
+            )
 
         # 黑名单副作用
         if result.add_group_blacklist:

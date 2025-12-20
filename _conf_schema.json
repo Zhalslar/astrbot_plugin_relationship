@@ -4,6 +4,12 @@
         "hint": "bot收到的好友申请、群邀请在审批群里审批，不填则将审批信息私发给bot管理员",
         "type": "string"
     },
+    "admin_id": {
+        "description": "Bot管理员QQ",
+        "hint": "bot管理员QQ，可添加为审批员，并设置审批群",
+        "type": "string",
+        "invisible": true
+    },
     "manage_users": {
         "description": "审批员",
         "hint": "bot管理员已默认添加为审批员, 此外可添加其他审批员。 审批员才有权限审批Bot收到的好友申请和群邀请",
