@@ -51,7 +51,7 @@ class RelationshipPlugin(Star):
 
     async def initialize(self):
         self.forward = ForwardHandle(self.config)
-        self.normal = NormalHandle(self, self.config)
+        self.normal = NormalHandle(self.config)
         self.request = RequestHandle(self.config)
         self.notice = NoticeHandle(self.forward, self.config)
 
@@ -60,13 +60,15 @@ class RelationshipPlugin(Star):
     @filter.command("群列表")
     async def get_group_list(self, event: AiocqhttpMessageEvent):
         """查看bot加入的所有群聊信息"""
-        await self.normal.get_group_list(event)
+        async for msg in self.normal.get_group_list(event):
+            yield msg
 
     @filter.permission_type(PermissionType.ADMIN)
     @filter.command("好友列表")
     async def get_friend_list(self, event: AiocqhttpMessageEvent):
         """查看bot的所有好友信息"""
-        await self.normal.get_friend_list(event)
+        async for msg in self.normal.get_friend_list(event):
+            yield msg
 
     @filter.permission_type(PermissionType.ADMIN)
     @filter.command("退群")
