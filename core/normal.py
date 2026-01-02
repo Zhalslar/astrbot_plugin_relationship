@@ -1,5 +1,3 @@
-from typing import TYPE_CHECKING
-
 from astrbot.api import logger
 from astrbot.core.config.astrbot_config import AstrBotConfig
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
@@ -8,13 +6,9 @@ from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
 
 from .utils import get_ats, parse_multi_input
 
-if TYPE_CHECKING:
-    from ..main import RelationshipPlugin
-
 
 class NormalHandle:
-    def __init__(self, plugin: "RelationshipPlugin", config: AstrBotConfig):
-        self.plugin = plugin
+    def __init__(self, config: AstrBotConfig):
         self.config = config
 
     # ---------- 查看群列表 ----------
@@ -23,15 +17,13 @@ class NormalHandle:
         client = event.bot
         group_list = await client.get_group_list()
 
-        info = "\n\n".join(
+        info = "\n".join(
             f"{i + 1}. {g['group_id']}: {g['group_name']}"
             for i, g in enumerate(group_list)
         )
         text = f"【群列表】共加入 {len(group_list)} 个群：\n\n{info}"
         logger.debug(text)
-
-        url = await self.plugin.text_to_image(text)
-        await event.send(event.image_result(url))
+        yield event.plain_result(text)
 
     # ---------- 查看好友列表 ----------
 
@@ -39,15 +31,13 @@ class NormalHandle:
         client = event.bot
         friend_list = await client.get_friend_list()
 
-        info = "\n\n".join(
+        info = "\n".join(
             f"{i + 1}. {f['user_id']}: {f['nickname']}"
             for i, f in enumerate(friend_list)
         )
-        text = f"【好友列表】共 {len(friend_list)} 位好友：\n\n{info}"
+        text = f"【好友列表】共 {len(friend_list)} 位好友：\n{info}"
         logger.debug(text)
-
-        url = await self.plugin.text_to_image(text)
-        await event.send(event.image_result(url))
+        yield event.plain_result(text)
 
     # ---------- 退群（批量 / 区间） ----------
 
