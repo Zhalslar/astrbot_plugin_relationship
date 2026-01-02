@@ -17,7 +17,7 @@ class NormalHandle:
         client = event.bot
         group_list = await client.get_group_list()
 
-        info = "\n".join(
+        info = "\n\n".join(
             f"{i + 1}. {g['group_id']}: {g['group_name']}"
             for i, g in enumerate(group_list)
         )
@@ -31,7 +31,7 @@ class NormalHandle:
         client = event.bot
         friend_list = await client.get_friend_list()
 
-        info = "\n".join(
+        info = "\n\n".join(
             f"{i + 1}. {f['user_id']}: {f['nickname']}"
             for i, f in enumerate(friend_list)
         )
