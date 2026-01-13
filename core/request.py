@@ -3,11 +3,11 @@ from dataclasses import dataclass
 from aiocqhttp import ActionFailed, CQHttp
 
 from astrbot.api import logger
-from astrbot.core.config.astrbot_config import AstrBotConfig
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
     AiocqhttpMessageEvent,
 )
 
+from .config import PluginConfig
 from .utils import get_ats, get_nickname, get_reply_text
 
 try:
@@ -127,7 +127,7 @@ def parse_request_from_text(text: str):
 
 
 async def monitor_add_request(
-    client: CQHttp, raw_message: dict, config: AstrBotConfig
+    client: CQHttp, raw_message: dict, config: PluginConfig
 ) -> tuple[str, str, FriendRequest | GroupRequest | None]:
     """监听好友申请或群邀请
 
@@ -200,12 +200,14 @@ async def monitor_add_request(
             except ActionFailed as e:
                 logger.warning(f"自动审批群邀请失败: {e}")
         else:
-            if config["manage_group"]:
-                user_reply = f"群邀请已收到，需要在审核群 {config['manage_group']} 审批后才能加入"
+            if config.manage_group:
+                user_reply = (
+                    f"群邀请已收到，需要在审核群 {config.manage_group} 审批后才能加入"
+                )
             else:
                 user_reply = "群邀请已收到，需要审核通过后才能加入"
 
-            if str(group_id) in config["group_blacklist"]:
+            if str(group_id) in config.group_blacklist:
                 admin_reply += (
                     "\n警告: 该群为黑名单群聊，请谨慎通过，若通过则自动移出黑名单"
                 )
@@ -277,18 +279,15 @@ async def handle_add_request(
 
 
 class RequestHandle:
-    def __init__(self, config: AstrBotConfig):
-        self.config = config
-        self.manage_users: list[str] = config["manage_users"]
-        self.manage_group = config["manage_group"]
-        self.admin_id = config["admin_id"]
+    def __init__(self, config: PluginConfig):
+        self.cfg = config
 
     async def event_monitoring(self, event: AiocqhttpMessageEvent):
         """监听好友申请或群邀请"""
         raw = getattr(event.message_obj, "raw_message", None)
         if isinstance(raw, dict) and raw.get("post_type") == "request":
             admin_reply, user_reply, request_data = await monitor_add_request(
-                client=event.bot, raw_message=raw, config=self.config
+                client=event.bot, raw_message=raw, config=self.cfg
             )
             if user_reply and request_data:
                 try:
@@ -303,60 +302,56 @@ class RequestHandle:
                 except ActionFailed as e:
                     logger.warning(f"用户回执发送失败（可能未加好友或不在群内）: {e}")
             if admin_reply:
-                if self.manage_group:
+                if self.cfg.manage_group:
                     await event.bot.send_group_msg(
-                        group_id=int(self.manage_group), message=admin_reply
+                        group_id=int(self.cfg.manage_group), message=admin_reply
                     )
-                elif self.admin_id:
+                elif self.cfg.admin_id:
                     await event.bot.send_private_msg(
-                        user_id=int(self.admin_id), message=admin_reply
+                        user_id=int(self.cfg.admin_id), message=admin_reply
                     )
 
     async def agree(self, event: AiocqhttpMessageEvent, extra: str = ""):
         """同意好友申请或群邀请"""
-        if event.get_sender_id() not in self.config["manage_users"]:
-            await event.send(event.plain_result("你没权限"))
-            return True
+        if event.get_sender_id() not in self.cfg.manage_users:
+            yield event.plain_result("你没权限")
+            return
         text = get_reply_text(event)
         request_data = parse_request_from_text(text)
         if not request_data:
-            await event.send(
-                event.plain_result("无法解析申请信息，请确保引用的是正确的申请消息")
-            )
+            yield event.plain_result("无法解析申请信息，请确保引用的是正确的申请消息")
             return
 
         reply = await handle_add_request(
             client=event.bot, request_data=request_data, approve=True, extra=extra
         )
         if reply:
-            await event.send(event.plain_result(reply))
+            yield event.plain_result(reply)
 
         # 如果是群邀请且群在黑名单中，移出黑名单
         if isinstance(request_data, GroupRequest):
             group_id = str(request_data.group_id)
-            if group_id in self.config["group_blacklist"]:
-                self.config["group_blacklist"].remove(group_id)
-                self.config.save_config()
+            if group_id in self.cfg.group_blacklist:
+                self.cfg.group_blacklist.remove(group_id)
+                self.cfg.save()
 
     async def refuse(self, event: AiocqhttpMessageEvent, extra: str = ""):
         """拒绝好友申请或群邀请"""
-        if event.get_sender_id() not in self.config["manage_users"]:
-            await event.send(event.plain_result("你没权限"))
-            return True
+        if event.get_sender_id() not in self.cfg.manage_users:
+            yield event.plain_result("你没权限")
+            return
 
         text = get_reply_text(event)
         request_data = parse_request_from_text(text)
         if not request_data:
-            await event.send(
-                event.plain_result("无法解析申请信息，请确保引用的是正确的申请消息")
-            )
+            yield event.plain_result("无法解析申请信息，请确保引用的是正确的申请消息")
             return
 
         reply = await handle_add_request(
             client=event.bot, request_data=request_data, approve=False, extra=extra
         )
         if reply:
-            await event.send(event.plain_result(reply))
+            yield event.plain_result(reply)
 
     async def append_manage_user(self, event: AiocqhttpMessageEvent):
         """添加审批员"""
@@ -368,12 +363,12 @@ class RequestHandle:
             nickname = await get_nickname(
                 client=event.bot, group_id=event.get_group_id(), user_id=at_id
             )
-            if at_id in self.manage_users:
+            if at_id in self.cfg.manage_users:
                 yield event.plain_result(f"{nickname}已在审批员列表中")
                 continue
-            self.manage_users.append(at_id)
+            self.cfg.manage_users.append(at_id)
             yield event.plain_result(f"已添加审批员: {nickname}")
-        self.config.save_config()
+        self.cfg.save()
 
     async def remove_manage_user(self, event: AiocqhttpMessageEvent):
         """移除审批员"""
@@ -385,9 +380,9 @@ class RequestHandle:
             nickname = await get_nickname(
                 client=event.bot, group_id=event.get_group_id(), user_id=at_id
             )
-            if at_id not in self.manage_users:
+            if at_id not in self.cfg.manage_users:
                 yield event.plain_result(f"{nickname}不在审批员列表中")
                 continue
-            self.manage_users.remove(at_id)
+            self.cfg.manage_users.remove(at_id)
             yield event.plain_result(f"已移除审批员: {nickname}")
-        self.config.save_config()
+        self.cfg.save()
