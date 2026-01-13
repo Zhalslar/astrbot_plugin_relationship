@@ -1,15 +1,15 @@
 from astrbot.api import logger
-from astrbot.core.config.astrbot_config import AstrBotConfig
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
     AiocqhttpMessageEvent,
 )
 
+from .config import PluginConfig
 from .utils import get_ats, parse_multi_input
 
 
 class NormalHandle:
-    def __init__(self, config: AstrBotConfig):
-        self.config = config
+    def __init__(self, config: PluginConfig):
+        self.cfg = config
 
     # ---------- 查看群列表 ----------
 
@@ -47,14 +47,14 @@ class NormalHandle:
         group_list = await client.get_group_list()
 
         if not group_list:
-            await event.send(event.plain_result("我还没加任何群"))
+            yield event.plain_result("我还没加任何群")
             return
 
         raw = event.message_str
         indexes, ids = parse_multi_input(raw, total=len(group_list))
 
         if not indexes and not ids:
-            await event.send(event.plain_result("请输入群序号或群号，可空格分隔"))
+            yield event.plain_result("请输入群序号或群号，可空格分隔")
             return
 
         group_map = {str(g["group_id"]): g for g in group_list}
@@ -75,7 +75,7 @@ class NormalHandle:
             await client.set_group_leave(group_id=int(gid))
             msgs.append(f"已退出群聊：{g['group_name']}({gid})")
 
-        await event.send(event.plain_result("\n".join(msgs)))
+        yield event.plain_result("\n".join(msgs))
 
     # ---------- 删好友（@ / 批量 / 区间） ----------
 
@@ -85,7 +85,7 @@ class NormalHandle:
         friend_list = await client.get_friend_list()
 
         if not friend_list:
-            await event.send(event.plain_result("我还没有好友"))
+            yield event.plain_result("我还没有好友")
             return
 
         # 先处理 @
@@ -103,7 +103,7 @@ class NormalHandle:
         user_ids |= ids
 
         if not user_ids:
-            await event.send(event.plain_result("请 @好友、输入 QQ 号或好友序号"))
+            yield event.plain_result("请 @好友、输入 QQ 号或好友序号")
             return
 
         friend_map = {str(f["user_id"]): f for f in friend_list}
@@ -118,6 +118,6 @@ class NormalHandle:
             await client.delete_friend(user_id=int(uid))
             msgs.append(f"已删除好友：{f['nickname']}({uid})")
 
-        await event.send(event.plain_result("\n".join(msgs)))
+        yield event.plain_result("\n".join(msgs))
 
 

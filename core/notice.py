@@ -4,11 +4,11 @@ from dataclasses import dataclass
 from aiocqhttp import CQHttp
 
 from astrbot.api import logger
-from astrbot.core.config.astrbot_config import AstrBotConfig
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
     AiocqhttpMessageEvent,
 )
 
+from .config import PluginConfig
 from .forward import ForwardHandle
 from .utils import convert_duration_advanced, get_nickname
 
@@ -114,12 +114,13 @@ class NoticeDecisionService:
         self,
         client: CQHttp,
         message: NoticeMessage,
-        config: AstrBotConfig,
+        config: PluginConfig,
     ):
+        self.cfg = config
         self.client = client
         self.msg = message
         self.config = config
-        self.max_duration = self.config["max_ban_days"] * 24 * 60 * 60
+        self.max_duration = self.cfg.max_ban_days * 24 * 60 * 60
 
         self._group_name: str | None = None
         self._operator_name: str | None = None
@@ -231,7 +232,7 @@ class NoticeDecisionService:
         result.admin_reply = self._reply("invited", **ctx)
 
         # 审批员拉群直接放行，其余人按规则过滤
-        if self.msg.operator_id not in self.config["manage_users"]:
+        if self.msg.operator_id not in self.cfg.manage_users:
             if await self._check_blacklist(result, ctx):
                 return
             if await self._check_group_size(result, ctx):
@@ -247,7 +248,7 @@ class NoticeDecisionService:
     # 各种检查
     # ----------------
     async def _check_blacklist(self, result: NoticeResult, ctx: dict) -> bool:
-        if self.msg.group_id in self.config["group_blacklist"]:
+        if self.msg.group_id in self.cfg.group_blacklist:
             result.admin_reply += self._suffix("invited_blacklist", **ctx)
             result.operator_reply = self._reply("invited_blacklist", "operator")
             result.leave_group = True
@@ -256,7 +257,7 @@ class NoticeDecisionService:
 
     async def _check_capacity(self, result: NoticeResult, ctx: dict) -> bool:
         group_list = await self.client.get_group_list()
-        max_cap = self.config["max_group_capacity"]
+        max_cap = self.cfg.max_group_capacity
 
         if len(group_list) > max_cap:
             result.admin_reply += self._suffix(
@@ -276,7 +277,7 @@ class NoticeDecisionService:
         return False
 
     async def _check_mutual_blacklist(self, result: NoticeResult, ctx: dict) -> bool:
-        mutual = set(self.config["mutual_blacklist"])
+        mutual = set(self.cfg.mutual_blacklist)
         mutual.discard(self.msg.user_id)
 
         members = await self.client.get_group_member_list(
@@ -319,10 +320,10 @@ class NoticeDecisionService:
             group_id=int(self.msg.group_id), no_cache=True
         )
         member_count = group_info.get("member_count", 0)
-        min_size = self.config["min_group_size"]
+        min_size = self.cfg.min_group_size
 
         # 1. 小群限制
-        if self.config["block_small_group"] and member_count <= min_size:
+        if self.cfg.block_small_group and member_count <= min_size:
             result.admin_reply += self._suffix(
                 "invited_small_group",
                 member_count=member_count,
@@ -339,7 +340,7 @@ class NoticeDecisionService:
             return True
 
         # 2. 大群限制
-        max_size = self.config["max_group_size"]
+        max_size = self.cfg.max_group_size
         if max_size and member_count > max_size:
             result.admin_reply += self._suffix(
                 "invited_large_group",
@@ -363,11 +364,9 @@ class NoticeDecisionService:
 # 应用层（唯一入口）
 # =========================
 class NoticeHandle:
-    def __init__(self, forward: ForwardHandle, config: AstrBotConfig):
+    def __init__(self, forward: ForwardHandle, config: PluginConfig):
         self.forward = forward
-        self.config = config
-        self.manage_group = config["manage_group"]
-        self.admin_id = config["admin_id"]
+        self.cfg = config
 
     def need_handle(self, msg: NoticeMessage) -> bool:
         return (
@@ -384,7 +383,7 @@ class NoticeHandle:
             return
 
         client = event.bot
-        service = NoticeDecisionService(client, msg, self.config)
+        service = NoticeDecisionService(client, msg, self.cfg)
         result = await service.decide()
 
         # 操作者提示
@@ -393,30 +392,30 @@ class NoticeHandle:
 
         # 管理者提示
         if result.admin_reply:
-            if self.manage_group:
+            if self.cfg.manage_group:
                 await event.bot.send_group_msg(
-                    group_id=int(self.manage_group),
+                    group_id=int(self.cfg.manage_group),
                     message=result.admin_reply,
                 )
-            elif self.admin_id:
+            elif self.cfg.admin_id:
                 await event.bot.send_private_msg(
-                    user_id=int(self.admin_id), message=result.admin_reply
+                    user_id=int(self.cfg.admin_id), message=result.admin_reply
                 )
 
         # 延时抽查
-        if result.delay_check and self.config["check_delay"]:
-            await asyncio.sleep(self.config["check_delay"])
+        if result.delay_check and self.cfg.check_delay > 0:
+            await asyncio.sleep(self.cfg.check_delay)
 
         if (
-            self.config["auto_check_messages"]
+            self.cfg.auto_check_messages
             and (result.admin_reply or result.operator_reply)
-            and (self.manage_group or self.admin_id)
+            and (self.cfg.manage_group or self.cfg.admin_id)
         ):
-            fgid = int(self.manage_group) if self.manage_group else None
-            fuid = int(self.admin_id) if self.admin_id else None
+            fgid = int(self.cfg.manage_group) if self.cfg.manage_group else None
+            fuid = int(self.cfg.admin_id) if self.cfg.admin_id else None
             await self.forward.source_forward(
                 client=event.bot,
-                count=self.config["msg_check_count"],
+                count=self.cfg.msg_check_count,
                 source_group_id=int(event.get_group_id()),
                 source_user_id=int(event.get_sender_id()),
                 forward_group_id=fgid,
@@ -425,9 +424,9 @@ class NoticeHandle:
 
         # 黑名单副作用
         if result.add_group_blacklist:
-            if msg.group_id not in self.config["group_blacklist"]:
-                self.config["group_blacklist"].append(msg.group_id)
-                self.config.save_config()
+            if msg.group_id not in self.cfg.group_blacklist:
+                self.cfg.group_blacklist.append(msg.group_id)
+                self.cfg.save()
                 logger.info(f"群聊 {msg.group_id} 已加入黑名单")
 
         # 退群

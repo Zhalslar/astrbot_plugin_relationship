@@ -4,17 +4,17 @@ from typing import Any
 from aiocqhttp import CQHttp
 
 from astrbot.api import logger
-from astrbot.core.config.astrbot_config import AstrBotConfig
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
     AiocqhttpMessageEvent,
 )
 
+from .config import PluginConfig
 from .utils import get_ats, get_reply_text, parse_multi_input
 
 
 class ForwardHandle:
-    def __init__(self, config: AstrBotConfig):
-        self.config = config
+    def __init__(self, config: PluginConfig):
+        self.cfg = config
 
     def _make_nodes(self, messages: list[dict]) -> list[dict[str, Any]]:
         """消息 -> 转发节点"""
@@ -118,7 +118,7 @@ class ForwardHandle:
                 group_id=forward_group_id,
                 user_id=forward_user_id,
                 messages=nodes,
-                batch_size=self.config["batch_size"],
+                batch_size=self.cfg.batch_size,
             )
             return True
         except Exception:
@@ -140,7 +140,7 @@ class ForwardHandle:
         client = event.bot
         sgid: int | None = None
         suid: int | None = None
-        count = count or self.config["msg_check_count"]
+        count = count or self.cfg.msg_check_count
 
         # 1.优先：@ 用户
         if at_ids := get_ats(event, noself=True):
