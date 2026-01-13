@@ -119,7 +119,6 @@ class NoticeDecisionService:
         self.cfg = config
         self.client = client
         self.msg = message
-        self.config = config
         self.max_duration = self.cfg.max_ban_days * 24 * 60 * 60
 
         self._group_name: str | None = None

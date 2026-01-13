@@ -338,7 +338,7 @@ class RequestHandle:
     async def refuse(self, event: AiocqhttpMessageEvent, extra: str = ""):
         """拒绝好友申请或群邀请"""
         if event.get_sender_id() not in self.cfg.manage_users:
-            await event.send(event.plain_result("你没权限"))
+            yield event.plain_result("你没权限")
             return
 
         text = get_reply_text(event)
