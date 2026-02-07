@@ -57,7 +57,7 @@ class NoticeHandle:
             self.cfg.add_black_group(notice.group_id)
 
         # 拉黑用户
-        if result.black_group:
+        if result.black_user:
             self.cfg.add_block_user(notice.user_id)
 
         # 退群

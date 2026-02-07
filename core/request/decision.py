@@ -11,12 +11,12 @@ class RequestResult:
     user_reply: str = ""
     event_reply: str = ""
     approve: bool | None = None
-    block_group: bool = False
-    block_user: bool = False
+    block_group: bool | None = None
+    block_user: bool | None = None
 
 
 class RequestDecision:
-    """请求决策层（统一入口）"""
+    """请求决策层"""
 
     def __init__(
         self,

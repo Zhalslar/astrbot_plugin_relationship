@@ -15,11 +15,11 @@ class NoticeResult:
     check_group: bool = False
     leave_group: bool = False
     black_group: bool = False
-    block_user: bool = False
+    black_user: bool = False
 
 
 class NoticeDecision:
-    """业务判断）"""
+    """通知决策层"""
 
     def __init__(
         self,
@@ -117,7 +117,7 @@ class NoticeDecision:
             result.admin_reply += "，已将此群拉进黑名单"
 
         if self.cfg.notice.kick_block_user:
-            result.block_user = True
+            result.black_user = True
             result.admin_reply += "，已将此人拉进黑名单"
 
 

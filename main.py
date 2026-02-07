@@ -50,12 +50,14 @@ class RelationshipPlugin(Star):
         async for msg in self.normal.delete_friend(event):
             yield msg
 
+    @filter.permission_type(PermissionType.ADMIN)
     @filter.command("加审批员")
     async def append_manage_user(self, event: AiocqhttpMessageEvent):
         """加审批员@某人"""
         async for msg in self.normal.append_manage_user(event):
             yield msg
 
+    @filter.permission_type(PermissionType.ADMIN)
     @filter.command("减审批员")
     async def remove_manage_user(self, event: AiocqhttpMessageEvent):
         """减审批员@某人"""
@@ -95,9 +97,10 @@ class RelationshipPlugin(Star):
         self,
         event: AiocqhttpMessageEvent,
         group_id: int | None = None,
-        count: int = 0,
+        count: int | None = None,
     ):
         """抽查 [群号|@群友|@QQ] [数量], 抽查聊天记录"""
+        count = count or self.cfg.check.count
         async for msg in ForwardTool.check_messages(
             event,
             target_id=group_id,
