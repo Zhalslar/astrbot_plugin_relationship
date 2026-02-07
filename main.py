@@ -14,6 +14,7 @@ from .core.notice import NoticeHandle
 from .core.request import RequestHandle
 
 
+
 class RelationshipPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
@@ -106,4 +107,43 @@ class RelationshipPlugin(Star):
             target_id=group_id,
             count=count,
         ):
+            yield msg
+
+    @filter.command("加群")
+    async def add_group(
+        self,
+        event: AiocqhttpMessageEvent,
+        target_gid: int,
+        answer: str = "",
+    ):
+        """加群 [群号] [答案]"""
+        try:
+            from .core.expansion import ExpansionHandle
+        except ImportError:
+            yield event.plain_result("该功能不对普通用户开放")
+            return
+        answer = answer or self.cfg.expansion.group_answer
+        from .core.expansion import ExpansionHandle
+        async for msg in ExpansionHandle.add_group(event, target_gid, answer):
+            yield msg
+
+    @filter.command("加好友")
+    async def add_friend(
+        self,
+        event: AiocqhttpMessageEvent,
+        target_uin: int,
+        verify: str = "",
+        remark: str = "",
+        answer: str = "",
+    ):
+        """
+        加好友 [QQ号] [验证消息] [备注] [答案]
+        """
+        try:
+            from .core.expansion import ExpansionHandle
+        except ImportError:
+            yield event.plain_result("该功能不对普通用户开放")
+            return
+        verify = verify or self.cfg.expansion.friend_verify
+        async for msg in ExpansionHandle.add_friend(event, target_uin, verify, remark, answer):
             yield msg

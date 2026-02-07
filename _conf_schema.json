@@ -9,9 +9,55 @@
         "hint": "bot管理员已默认添加为审批员, 此外可添加其他审批员。 审批员才有权限审批Bot收到的好友申请和群邀请",
         "type": "list"
     },
-    "request": {
-        "description": "请求类事件配置",
+    "check": {
+        "description": "抽查配置",
         "hint": "",
+        "type": "object",
+        "items": {
+            "count": {
+                "description": "抽查消息默认数量",
+                "type": "int",
+                "hint": "每次抽查默认抽查多少条消息，“抽查”命令可输入一个数字来指定抽查数量，自动抽查使用默认值",
+                "slider": {
+                    "min": 1,
+                    "max": 100,
+                    "step": 1
+                },
+                "default": 20
+            },
+            "batch_size": {
+                "description": "单次转发消息数量",
+                "type": "int",
+                "hint": "由于一次性转发过多消息容易报错，所有插件采用了分批次转发的策略。此处定义每次转发的消息数量，消息超过此数量会自动分批次转发",
+                "slider": {
+                    "min": 10,
+                    "max": 60,
+                    "step": 1
+                },
+                "default": 40
+            },
+            "check_new_group": {
+                "description": "是否自动抽查群聊天记录",
+                "hint": "开启后，每次触发群管理事件时，bot会自动抽查对应群的聊天记录",
+                "type": "bool",
+                "default": true
+            },
+            "delay": {
+                "description": "新群延迟抽查时间（秒）",
+                "hint": "机器人被拉入新群后，等待多少秒再执行自动抽查",
+                "type": "int",
+                "slider": {
+                    "min": 0,
+                    "max": 600,
+                    "step": 1
+                },
+                "default": 30
+            }
+        }
+    },
+    "request": {
+        "description": "请求配置",
+        "hint": "请求类事件：群邀请、好友申请",
         "type": "object",
         "items": {
             "group_blacklist": {
@@ -51,8 +97,8 @@
         }
     },
     "notice": {
-        "description": "通知类事件配置",
-        "hint": "",
+        "description": "通知配置",
+        "hint": "通知类事件：被设为管理员、被撤了管理员、被禁言、被拉进群、被踢出群",
         "type": "object",
         "items": {
             "block_small_group": {
@@ -121,49 +167,22 @@
             }
         }
     },
-    "check": {
-        "description": "抽查配置",
-        "hint": "",
+    "expansion": {
+        "description": "扩列配置",
+        "hint": "扩列事件：加群、加好友。此模块不开源，普通用户无需配置",
         "type": "object",
         "items": {
-            "count": {
-                "description": "抽查消息默认数量",
-                "type": "int",
-                "hint": "每次抽查默认抽查多少条消息，“抽查”命令可输入一个数字来指定抽查数量，自动抽查使用默认值",
-                "slider": {
-                    "min": 1,
-                    "max": 100,
-                    "step": 1
-                },
-                "default": 20
+            "group_answer": {
+                "description": "加群默认的进群答案",
+                "type": "string",
+                "hint": "加群不指定进群答案时，采用默认答案",
+                "default": "进来看看"
             },
-            "batch_size": {
-                "description": "单次转发消息数量",
-                "type": "int",
-                "hint": "由于一次性转发过多消息容易报错，所有插件采用了分批次转发的策略。此处定义每次转发的消息数量，消息超过此数量会自动分批次转发",
-                "slider": {
-                    "min": 10,
-                    "max": 60,
-                    "step": 1
-                },
-                "default": 40
-            },
-            "check_new_group": {
-                "description": "是否自动抽查群聊天记录",
-                "hint": "开启后，每次触发群管理事件时，bot会自动抽查对应群的聊天记录",
-                "type": "bool",
-                "default": true
-            },
-            "delay": {
-                "description": "新群延迟抽查时间（秒）",
-                "hint": "机器人被拉入新群后，等待多少秒再执行自动抽查",
-                "type": "int",
-                "slider": {
-                    "min": 0,
-                    "max": 600,
-                    "step": 1
-                },
-                "default": 30
+            "friend_verify": {
+                "description": "加好友默认的验证消息",
+                "type": "string",
+                "hint": "加好友不指定验证消息时，采用默认验证消息",
+                "default": "你好"
             }
         }
     }
