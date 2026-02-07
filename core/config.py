@@ -138,7 +138,7 @@ class NoticeConfig(ConfigNode):
     def is_mutual(self, group_id: str) -> bool:
         return group_id in self.mutual_blacklist
 
-class ExpansionConfig:
+class ExpansionConfig(ConfigNode):
     group_answer: str
     friend_verify: str
 
