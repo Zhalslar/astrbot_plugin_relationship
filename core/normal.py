@@ -4,7 +4,7 @@ from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
 )
 
 from .config import PluginConfig
-from .utils import get_ats, parse_multi_input
+from .utils import get_ats, parse_multi_input, get_nickname
 
 
 class NormalHandle:
@@ -120,4 +120,34 @@ class NormalHandle:
 
         yield event.plain_result("\n".join(msgs))
 
+    async def append_manage_user(self, event: AiocqhttpMessageEvent):
+        """添加审批员"""
+        at_ids = get_ats(event)
+        if not at_ids:
+            yield event.plain_result("需@要添加的审批员")
+            return
+        for at_id in at_ids:
+            nickname = await get_nickname(
+                client=event.bot, group_id=event.get_group_id(), user_id=at_id
+            )
+            if self.cfg.is_manage_user(at_id):
+                yield event.plain_result(f"{nickname}已在审批员列表中")
+                continue
+            self.cfg.add_manage_user(at_id)
+            yield event.plain_result(f"已添加审批员: {nickname}")
 
+    async def remove_manage_user(self, event: AiocqhttpMessageEvent):
+        """移除审批员"""
+        at_ids = get_ats(event)
+        if not at_ids:
+            yield event.plain_result("需@要移除的审批员")
+            return
+        for at_id in at_ids:
+            nickname = await get_nickname(
+                client=event.bot, group_id=event.get_group_id(), user_id=at_id
+            )
+            if not self.cfg.is_manage_user(at_id):
+                yield event.plain_result(f"{nickname}不在审批员列表中")
+                continue
+            self.cfg.remove_manage_user(at_id)
+            yield event.plain_result(f"已移除审批员: {nickname}")

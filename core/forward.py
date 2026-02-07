@@ -8,15 +8,13 @@ from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
     AiocqhttpMessageEvent,
 )
 
-from .config import PluginConfig
 from .utils import get_ats, get_reply_text, parse_multi_input
+from .config import PluginConfig
 
 
-class ForwardHandle:
-    def __init__(self, config: PluginConfig):
-        self.cfg = config
-
-    def _make_nodes(self, messages: list[dict]) -> list[dict[str, Any]]:
+class ForwardTool:
+    @staticmethod
+    def _make_nodes(messages: list[dict]) -> list[dict[str, Any]]:
         """消息 -> 转发节点"""
         nodes = []
         for message in messages:
@@ -31,8 +29,8 @@ class ForwardHandle:
             nodes.append(node)
         return nodes
 
+    @staticmethod
     async def _get_msg_history(
-        self,
         client: CQHttp,
         count: int,
         group_id: int | None = None,
@@ -56,8 +54,8 @@ class ForwardHandle:
                 logger.exception(f"获取好友({user_id})消息历史失败")
         return result.get("messages") if result else None
 
+    @staticmethod
     async def _forward_messages(
-        self,
         client: CQHttp,
         messages: list[dict],
         group_id: int | None = None,
@@ -84,14 +82,16 @@ class ForwardHandle:
             except Exception:
                 logger.exception(f"转发消息失败（第{i // batch_size + 1}批）")
 
+    @staticmethod
     async def source_forward(
-        self,
         client: CQHttp,
+        *,
         count: int,
         source_group_id: int | None = None,
         source_user_id: int | None = None,
         forward_group_id: int | None = None,
         forward_user_id: int | None = None,
+        batch_size: int = 0,
     ) -> bool:
         """
         转发消息
@@ -104,30 +104,31 @@ class ForwardHandle:
         """
         try:
             # 获取消息历史
-            messages = await self._get_msg_history(
+            messages = await ForwardTool._get_msg_history(
                 client, group_id=source_group_id, user_id=source_user_id, count=count
             )
             if not messages:
                 return False
             # 构造转发节点
-            nodes = self._make_nodes(messages)
+            nodes = ForwardTool._make_nodes(messages)
 
             # 按优先级转发到目标
-            await self._forward_messages(
+            await ForwardTool._forward_messages(
                 client,
                 group_id=forward_group_id,
                 user_id=forward_user_id,
                 messages=nodes,
-                batch_size=self.cfg.batch_size,
+                batch_size=batch_size,
             )
             return True
         except Exception:
             return False
 
+    @staticmethod
     async def check_messages(
-        self,
         event: AiocqhttpMessageEvent,
-        target: str | int | None = None,
+        *,
+        target_id: str | int | None = None,
         count: int = 0,
     ):
         """
@@ -140,7 +141,6 @@ class ForwardHandle:
         client = event.bot
         sgid: int | None = None
         suid: int | None = None
-        count = count or self.cfg.msg_check_count
 
         # 1.优先：@ 用户
         if at_ids := get_ats(event, noself=True):
@@ -148,7 +148,7 @@ class ForwardHandle:
 
         # 2.文本解析（复用 parse_multi_input）
         if not suid:
-            raw = str(target or get_reply_text(event) or "").strip()
+            raw = str(target_id or get_reply_text(event) or "").strip()
 
             # 先解析可能的序号 / ID
             group_list = await client.get_group_list()
@@ -179,7 +179,7 @@ class ForwardHandle:
         )
 
         try:
-            await self.source_forward(
+            await ForwardTool.source_forward(
                 client=client,
                 count=count,
                 source_group_id=sgid,
@@ -191,3 +191,21 @@ class ForwardHandle:
         except Exception as e:
             yield event.plain_result(f"抽查失败：{e}")
             logger.error(f"抽查失败: {e}")
+
+    @staticmethod
+    async def send_admin(
+        event: AiocqhttpMessageEvent,
+        config: PluginConfig,
+        text: str,
+    ):
+        try:
+            if config.manage_group:
+                await event.bot.send_group_msg(
+                    group_id=int(config.manage_group), message=text
+                )
+            elif config.admin_id:
+                await event.bot.send_private_msg(
+                    user_id=int(config.admin_id), message=text
+                )
+        except Exception as e:
+            logger.warning(f"消息发送失败: {e}")
