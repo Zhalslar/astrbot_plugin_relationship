@@ -102,6 +102,12 @@ class ConfigNode:
 
 # ====================== 插件自定义配置 ======================
 
+class CheckConfig(ConfigNode):
+    count: int
+    batch_size: int
+    check_new_group: bool
+    delay: int
+
 class RequestConfig(ConfigNode):
     # 黑名单
     group_blacklist: list[str]
@@ -132,20 +138,17 @@ class NoticeConfig(ConfigNode):
     def is_mutual(self, group_id: str) -> bool:
         return group_id in self.mutual_blacklist
 
-
-class CheckConfig(ConfigNode):
-    count: int
-    batch_size: int
-    check_new_group: bool
-    delay: int
-
+class ExpansionConfig:
+    group_answer: str
+    friend_verify: str
 
 class PluginConfig(ConfigNode):
     manage_group: str
     manage_users: list[str]
+    check: CheckConfig
     request: RequestConfig
     notice: NoticeConfig
-    check: CheckConfig
+    expansion: ExpansionConfig
 
     def __init__(self, config: AstrBotConfig, context: Context):
         super().__init__(config)
