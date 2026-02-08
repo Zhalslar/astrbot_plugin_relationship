@@ -166,24 +166,5 @@
                 "default": []
             }
         }
-    },
-    "expansion": {
-        "description": "扩列配置",
-        "hint": "扩列事件：加群、加好友。此模块不开源，普通用户无需配置",
-        "type": "object",
-        "items": {
-            "group_answer": {
-                "description": "加群默认的进群答案",
-                "type": "string",
-                "hint": "加群不指定进群答案时，采用默认答案",
-                "default": "进来看看"
-            },
-            "friend_verify": {
-                "description": "加好友默认的验证消息",
-                "type": "string",
-                "hint": "加好友不指定验证消息时，采用默认验证消息",
-                "default": "你好"
-            }
-        }
     }
 }

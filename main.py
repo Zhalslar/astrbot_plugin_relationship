@@ -116,7 +116,7 @@ class RelationshipPlugin(Star):
         except ImportError:
             yield event.plain_result("该功能不对普通用户开放")
             return
-        async for msg in ExpansionHandle.add_group(event, self.cfg):
+        async for msg in ExpansionHandle.add_group(event):
             yield msg
 
     @filter.command("加好友")
@@ -127,5 +127,5 @@ class RelationshipPlugin(Star):
         except ImportError:
             yield event.plain_result("该功能不对普通用户开放")
             return
-        async for msg in ExpansionHandle.add_friend(event, self.cfg):
+        async for msg in ExpansionHandle.add_friend(event):
             yield msg
