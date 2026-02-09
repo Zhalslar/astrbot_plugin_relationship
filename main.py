@@ -12,6 +12,7 @@ from .core.forward import ForwardTool
 from .core.normal import NormalHandle
 from .core.notice import NoticeHandle
 from .core.request import RequestHandle
+from .core.contact import ContactHandle
 
 
 class RelationshipPlugin(Star):
@@ -21,6 +22,7 @@ class RelationshipPlugin(Star):
         self.normal = NormalHandle(self.cfg)
         self.request = RequestHandle(self.cfg)
         self.notice = NoticeHandle(self.cfg)
+        self.contact = ContactHandle(self.cfg)
 
     @filter.permission_type(PermissionType.ADMIN)
     @filter.command("群列表")
@@ -129,3 +131,8 @@ class RelationshipPlugin(Star):
             return
         async for msg in ExpansionHandle.add_friend(event):
             yield msg
+
+    @filter.command("推荐")
+    async def on_contact(self, event: AiocqhttpMessageEvent):
+        """推荐 <群号/@群友/@qq>"""
+        await self.contact.contact(event)
