@@ -4,7 +4,7 @@ from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
 )
 
 from .config import PluginConfig
-from .utils import get_ats, parse_multi_input, get_nickname
+from .utils import get_ats, get_nickname, parse_multi_input
 
 
 class NormalHandle:

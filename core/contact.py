@@ -1,4 +1,5 @@
 import random
+
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
     AiocqhttpMessageEvent,
 )
@@ -39,7 +40,6 @@ class ContactHandle:
 
         payload = {"message": [{"type": "contact", "data": contact}]}
         await self.cqhttp_send(event, payload)
-
 
     async def _get_random_target(self, client) -> tuple[list[int], list[int]]:
         """当没有目标时，随机补一个"""

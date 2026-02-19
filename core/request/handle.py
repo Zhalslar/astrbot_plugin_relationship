@@ -1,14 +1,15 @@
 from aiocqhttp import CQHttp
+
 from astrbot.api import logger
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
     AiocqhttpMessageEvent,
 )
 
 from ..config import PluginConfig
-from .model import FriendRequest, GroupRequest, BaseRequest
-from .decision import RequestDecision
-from ..utils import get_reply_text
 from ..forward import ForwardTool
+from ..utils import get_reply_text
+from .decision import RequestDecision
+from .model import BaseRequest, FriendRequest, GroupRequest
 
 
 class RequestHandle:
@@ -61,7 +62,7 @@ class RequestHandle:
         if result.user_reply:
             await self._send_user_reply(event, req, result.user_reply)
 
-        if result.admin_reply:
+        if result.admin_reply and approve is None:
             await ForwardTool.send_admin(event, self.cfg, result.admin_reply)
 
         if result.block_group is False and isinstance(req, GroupRequest):

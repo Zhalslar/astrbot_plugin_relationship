@@ -1,5 +1,7 @@
 from dataclasses import dataclass
+
 from aiocqhttp import CQHttp
+
 from ..config import PluginConfig
 from ..utils import convert_duration_advanced, get_nickname
 from .model import NoticeMessage
@@ -110,7 +112,7 @@ class NoticeDecision:
     async def _handle_kicked(self, result: NoticeResult):
         group_name = await self._get_group_name()
         operator_name = await self._get_operator_name()
-        gid = self.msg.group_id 
+        gid = self.msg.group_id
         result.admin_reply = f"呜呜ww..我被 {operator_name} 踢出了 {group_name}({gid})"
         if self.cfg.notice.kick_block_group:
             result.black_group = True
@@ -119,7 +121,6 @@ class NoticeDecision:
         if self.cfg.notice.kick_block_user:
             result.black_user = True
             result.admin_reply += "，已将此人拉进黑名单"
-
 
     async def _handle_invited(self, result: NoticeResult):
         group_name = await self._get_group_name()

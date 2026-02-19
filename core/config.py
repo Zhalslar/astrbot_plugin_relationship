@@ -102,11 +102,13 @@ class ConfigNode:
 
 # ====================== 插件自定义配置 ======================
 
+
 class CheckConfig(ConfigNode):
     count: int
     batch_size: int
     check_new_group: bool
     delay: int
+
 
 class RequestConfig(ConfigNode):
     # 黑名单
@@ -135,6 +137,7 @@ class NoticeConfig(ConfigNode):
     def __init__(self, data: MutableMapping[str, Any]):
         super().__init__(data)
         self.max_duration = self.max_ban_days * 24 * 60 * 60
+
     def is_mutual(self, group_id: str) -> bool:
         return group_id in self.mutual_blacklist
 
@@ -172,7 +175,6 @@ class PluginConfig(ConfigNode):
 
         self.save_config()
 
-
     @staticmethod
     def _clean_ids(ids: list) -> list[str]:
         """过滤并规范化数字 ID"""
@@ -205,7 +207,7 @@ class PluginConfig(ConfigNode):
     def is_block_user(self, user_id: str) -> bool:
         """判断用户是否被拉黑"""
         return user_id in self.user_blacklist
-    
+
     def add_block_user(self, user_id: str | int) -> None:
         """将用户加入拉黑名单"""
         uid = str(user_id)
@@ -241,4 +243,3 @@ class PluginConfig(ConfigNode):
             self.manage_users.remove(uid)
             self.save_config()
             logger.info(f"用户 {uid} 已从审批员移除")
-

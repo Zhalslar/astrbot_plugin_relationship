@@ -1,8 +1,9 @@
 from dataclasses import dataclass
+
 from aiocqhttp import CQHttp
 
 from ..config import PluginConfig
-from .model import FriendRequest, GroupRequest, BaseRequest
+from .model import BaseRequest, FriendRequest, GroupRequest
 
 
 @dataclass

@@ -8,11 +8,11 @@ from astrbot.core.star.filter.permission import PermissionType
 from astrbot.core.star.filter.platform_adapter_type import PlatformAdapterType
 
 from .core.config import PluginConfig
+from .core.contact import ContactHandle
 from .core.forward import ForwardTool
 from .core.normal import NormalHandle
 from .core.notice import NoticeHandle
 from .core.request import RequestHandle
-from .core.contact import ContactHandle
 
 
 class RelationshipPlugin(Star):
