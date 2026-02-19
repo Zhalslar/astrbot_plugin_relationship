@@ -1,12 +1,13 @@
 import asyncio
+
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
     AiocqhttpMessageEvent,
 )
 
 from ..config import PluginConfig
 from ..forward import ForwardTool
-from .model import NoticeMessage
 from .decision import NoticeDecision
+from .model import NoticeMessage
 
 
 class NoticeHandle:

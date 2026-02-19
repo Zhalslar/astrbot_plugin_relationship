@@ -1,6 +1,6 @@
-from dataclasses import dataclass
 from abc import ABC, abstractmethod
-from typing import ClassVar, Dict, Optional
+from dataclasses import dataclass
+from typing import ClassVar, Optional
 
 # ==========================================================
 # BaseRequest
@@ -15,7 +15,7 @@ class BaseRequest(ABC):
     """
 
     _HEADER: ClassVar[str]
-    _FIELD_MAP: ClassVar[Dict[str, str]]
+    _FIELD_MAP: ClassVar[dict[str, str]]
 
     # -------------------------
     # 展示
