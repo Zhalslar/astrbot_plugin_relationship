@@ -179,13 +179,21 @@ class ForwardTool:
         )
 
         try:
+            forward_group_id = (
+                int(event.get_group_id()) if str(event.get_group_id()).isdigit() else None
+            )
+            forward_user_id = (
+                int(event.get_sender_id())
+                if str(event.get_sender_id()).isdigit()
+                else None
+            )
             await ForwardTool.source_forward(
                 client=client,
                 count=count,
                 source_group_id=sgid,
                 source_user_id=suid,
-                forward_group_id=int(event.get_group_id()),
-                forward_user_id=int(event.get_sender_id()),
+                forward_group_id=forward_group_id,
+                forward_user_id=forward_user_id,
             )
             event.stop_event()
         except Exception as e:
