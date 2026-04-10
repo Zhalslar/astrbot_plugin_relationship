@@ -16,6 +16,8 @@ class NoticeHandle:
 
     async def handle(self, event: AiocqhttpMessageEvent):
         raw = getattr(event.message_obj, "raw_message", {})
+        if not isinstance(raw, dict):
+            return
         notice = NoticeMessage.from_raw(raw)
 
         if not notice.is_self_notice():

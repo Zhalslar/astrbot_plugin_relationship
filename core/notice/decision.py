@@ -60,7 +60,7 @@ class NoticeDecision:
     # ----------------
     async def _get_group_name(self) -> str:
         if self._group_name is None:
-            info = await self.client.get_group_info(group_id=int(self.msg.group_id))
+            info = await self.client.get_group_info(group_id=int(self.msg.group_id)) or {}
             self._group_name = info.get("group_name", "")
         return self._group_name
 
@@ -198,7 +198,9 @@ class NoticeDecision:
         """
         返回 True 表示已触发退群，不再继续后续检查
         """
-        group_info = await self.client.get_group_info(group_id=int(gid), no_cache=True)
+        group_info = (
+            await self.client.get_group_info(group_id=int(gid), no_cache=True) or {}
+        )
         member_count = group_info.get("member_count", 0)
 
         # 1. 小群限制
