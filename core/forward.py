@@ -179,13 +179,13 @@ class ForwardTool:
         )
 
         try:
+            group_id_str = str(event.get_group_id())
+            sender_id_str = str(event.get_sender_id())
             forward_group_id = (
-                int(event.get_group_id()) if str(event.get_group_id()).isdigit() else None
+                int(group_id_str) if group_id_str.isdigit() else None
             )
             forward_user_id = (
-                int(event.get_sender_id())
-                if str(event.get_sender_id()).isdigit()
-                else None
+                int(sender_id_str) if sender_id_str.isdigit() else None
             )
             await ForwardTool.source_forward(
                 client=client,
