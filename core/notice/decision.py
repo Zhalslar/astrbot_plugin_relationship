@@ -96,7 +96,6 @@ class NoticeDecision:
             result.admin_reply = (
                 f"好耶！{operator_name} 在 {group_name}({gid}) 解除了我的禁言"
             )
-            result.operator_reply = "感谢解禁"
             return
 
         duration_str = convert_duration_advanced(self.msg.duration)
