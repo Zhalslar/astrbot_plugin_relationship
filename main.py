@@ -181,16 +181,6 @@ class RelationshipPlugin(Star):
         except ValueError:
             yield event.plain_result("群号格式错误")
             return
-        parts = event.message_str.strip().split()
-        args = parts[1:] if len(parts) > 1 else []
-        if not args:
-            yield event.plain_result("用法：加群 群号 [答案]")
-            return
-        try:
-            target_gid = int(args[0])
-        except ValueError:
-            yield event.plain_result("群号格式错误")
-            return
         answer = args[1] if len(args) > 1 else None
         client = event.bot
         self_id = int(event.get_self_id())
