@@ -13,6 +13,7 @@ from .core.forward import ForwardTool
 from .core.normal import NormalHandle
 from .core.notice import NoticeHandle
 from .core.request import RequestHandle
+from .core.utils import get_ats, get_nickname
 
 
 class RelationshipPlugin(Star):
@@ -110,29 +111,96 @@ class RelationshipPlugin(Star):
         ):
             yield msg
 
-    @filter.command("加群")
-    async def add_group(self, event: AiocqhttpMessageEvent):
-        """加群 [群号] [答案]"""
-        try:
-            from .core.expansion import ExpansionHandle
-        except ImportError:
-            yield event.plain_result("该功能不对普通用户开放")
-            return
-        async for msg in ExpansionHandle.add_group(event):
-            yield msg
-
-    @filter.command("加好友")
-    async def add_friend(self, event: AiocqhttpMessageEvent):
-        """加好友 [QQ号/@某人] [验证消息] [备注] [答案]"""
-        try:
-            from .core.expansion import ExpansionHandle
-        except ImportError:
-            yield event.plain_result("该功能不对普通用户开放")
-            return
-        async for msg in ExpansionHandle.add_friend(event):
-            yield msg
-
     @filter.command("推荐")
     async def on_contact(self, event: AiocqhttpMessageEvent):
         """推荐 <群号/@群友/@qq>"""
         await self.contact.contact(event)
+
+    @filter.command("加好友")
+    async def add_group(self, event: AiocqhttpMessageEvent):
+        """加好友 [QQ号/@某人] [验证消息] [备注] [答案]"""
+        try:
+            from .core.expansion import ExpansionHandle
+        except ImportError:
+            yield event.plain_result("该功能仅对开发人员开放")
+            return
+        parts = event.message_str.strip().split()
+        args = parts[1:] if len(parts) > 1 else []
+        at_ids = get_ats(event)
+        if at_ids:
+            target_uin = int(at_ids[0])
+            if args:
+                args = args[1:]
+        elif args:
+            try:
+                target_uin = int(args[0])
+                args = args[1:]
+            except ValueError:
+                yield event.plain_result("QQ号格式错误")
+                return
+        else:
+            yield event.plain_result("需指定要加谁（QQ号 或 @某人）")
+            return
+        verify = args[0] if args else ""
+        remark = args[1] if len(args) > 1 else ""
+        answer = args[2] if len(args) > 2 else ""
+        client = event.bot
+        self_id = int(event.get_self_id())
+        if not verify:
+            gid = event.get_group_id()
+            group_id = int(gid) if gid else 0
+            group_info = await client.get_group_info(group_id=group_id, no_cache=True)
+            group_name = group_info.get("group_name", str(group_id))
+            self_name = await get_nickname(client, group_id, self_id)
+            verify = f"我是来自{group_name}的{self_name}"
+        msg = await ExpansionHandle.add_friend(
+            client=client,
+            target_uin=target_uin,
+            self_id=self_id,
+            verify=verify,
+            remark=remark,
+            answer=answer,
+        )
+        yield event.plain_result(msg)
+
+    @filter.command("加群")
+    async def add_friend(self, event: AiocqhttpMessageEvent):
+        """加群 [群号] [答案]"""
+        try:
+            from .core.expansion import ExpansionHandle
+        except ImportError:
+            yield event.plain_result("该功能仅对开发人员开放")
+            return
+        parts = event.message_str.strip().split()
+        args = parts[1:] if len(parts) > 1 else []
+        if not args:
+            yield event.plain_result("用法：加群 群号 [答案]")
+            return
+        try:
+            target_gid = int(args[0])
+        except ValueError:
+            yield event.plain_result("群号格式错误")
+            return
+        parts = event.message_str.strip().split()
+        args = parts[1:] if len(parts) > 1 else []
+        if not args:
+            yield event.plain_result("用法：加群 群号 [答案]")
+            return
+        try:
+            target_gid = int(args[0])
+        except ValueError:
+            yield event.plain_result("群号格式错误")
+            return
+        answer = args[1] if len(args) > 1 else None
+        client = event.bot
+        self_id = int(event.get_self_id())
+        if not answer:
+            gid = event.get_group_id()
+            group_id = int(gid) if gid else 0
+            sender_name = event.get_sender_name()
+            self_name = await get_nickname(client, group_id, self_id)
+            answer = f"我是{sender_name}推荐来的{self_name}"
+        msg = await ExpansionHandle.add_group(
+            client=client, target_gid=target_gid, answer=answer
+        )
+        yield event.plain_result(msg)
