@@ -82,10 +82,8 @@ class NoticeDecision:
 
         if self.msg.sub_type == "set":
             result.admin_reply = f"哇！我成为了 {group_name}({gid}) 的管理员"
-            result.operator_reply = "芜湖~拿到管理了"
         else:
             result.admin_reply = f"呜呜ww.. 我在 {group_name}({gid}) 的管理员被撤了"
-            result.operator_reply = "呜呜ww..干嘛撤掉我管理"
 
     async def _handle_ban(self, result: NoticeResult):
         group_name = await self._get_group_name()
