@@ -21,6 +21,7 @@ class RequestHandle:
         event: AiocqhttpMessageEvent,
         approve: bool,
         extra: str = "",
+        block: bool = False,
     ):
         """处理好友申请或群邀请"""
         sender_id = event.get_sender_id()
@@ -32,7 +33,13 @@ class RequestHandle:
         if not req:
             yield event.plain_result("无法解析申请信息，请确保引用的是正确的申请消息")
             return
-        async for msg in self._handle_req(event, req, approve=approve, extra=extra):
+        async for msg in self._handle_req(
+            event,
+            req,
+            approve=approve,
+            extra=extra,
+            block=block,
+        ):
             yield msg
 
     async def handle_raw(self, event: AiocqhttpMessageEvent):
@@ -49,9 +56,10 @@ class RequestHandle:
         req: BaseRequest,
         approve: bool | None = None,
         extra: str = "",
+        block: bool = False,
     ):
         decision = RequestDecision(event.bot, req, self.cfg)
-        result = await decision.decide(approve=approve, extra=extra)
+        result = await decision.decide(approve=approve, extra=extra, block=block)
 
         if result.approve is not None:
             await self._do_approve(event.bot, req, result.approve)
@@ -67,9 +75,13 @@ class RequestHandle:
 
         if result.block_group is False and isinstance(req, GroupRequest):
             self.cfg.remove_black_group(req.group_id)
+        elif result.block_group and isinstance(req, GroupRequest):
+            self.cfg.add_black_group(req.group_id)
 
         if result.block_user is False and isinstance(req, FriendRequest):
             self.cfg.remove_block_user(req.user_id)
+        elif result.block_user and isinstance(req, FriendRequest):
+            self.cfg.add_block_user(req.user_id)
 
     async def _do_approve(self, client: CQHttp, req: BaseRequest, approve: bool):
         try:

@@ -99,7 +99,7 @@ class FriendRequest(BaseRequest):
     flag: str
     comment: str
 
-    _HEADER = "【好友申请】同意/拒绝："
+    _HEADER = "【好友申请】同意/拒绝/拉黑："
     _FIELD_MAP = {
         "昵称": "nickname",
         "QQ号": "user_id",
@@ -143,7 +143,7 @@ class GroupRequest(BaseRequest):
     flag: str
     comment: str
 
-    _HEADER = "【群邀请】同意/拒绝："
+    _HEADER = "【群邀请】同意/拒绝/拉黑："
     _FIELD_MAP = {
         "邀请人昵称": "inviter_nickname",
         "邀请人QQ": "inviter_id",

@@ -60,7 +60,9 @@ class NoticeDecision:
     # ----------------
     async def _get_group_name(self) -> str:
         if self._group_name is None:
-            info = await self.client.get_group_info(group_id=int(self.msg.group_id)) or {}
+            info = (
+                await self.client.get_group_info(group_id=int(self.msg.group_id)) or {}
+            )
             self._group_name = info.get("group_name", "")
         return self._group_name
 
