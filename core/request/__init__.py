@@ -1,6 +1,6 @@
-from .handle import RequestHandle
-from .model import BaseRequest, GroupRequest, FriendRequest
 from .decision import RequestDecision, RequestResult
+from .handle import RequestHandle
+from .model import BaseRequest, FriendRequest, GroupRequest
 
 __all__ = [
     "RequestHandle",

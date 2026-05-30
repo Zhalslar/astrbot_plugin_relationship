@@ -1,10 +1,10 @@
-
 from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
 class NoticeMessage:
     """Notice 消息模型"""
+
     post_type: str
     notice_type: str
     sub_type: str
@@ -35,4 +35,3 @@ class NoticeMessage:
             and self.user_id == self.self_id
             and self.operator_id != self.self_id
         )
-

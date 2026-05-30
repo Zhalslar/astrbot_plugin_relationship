@@ -33,6 +33,7 @@ class RequestDecision:
         self,
         approve: bool | None = None,
         extra: str = "",
+        block: bool = False,
     ) -> RequestResult:
         result = RequestResult(approve=approve)
         result.admin_reply = self.req.to_display_text()
@@ -55,9 +56,9 @@ class RequestDecision:
         # 指令决策
         else:
             if isinstance(self.req, FriendRequest):
-                await self._decide_friend_cmd(self.req, approve, result, extra)
+                await self._decide_friend_cmd(self.req, approve, result, extra, block)
             elif isinstance(self.req, GroupRequest):
-                await self._decide_group_cmd(self.req, approve, result, extra)
+                await self._decide_group_cmd(self.req, approve, result, extra, block)
 
         return result
 
@@ -173,6 +174,7 @@ class RequestDecision:
         approve: bool,
         result: RequestResult,
         extra: str = "",
+        block: bool = False,
     ):
         friend_list = await self.client.get_friend_list()
         uids = {str(f["user_id"]) for f in friend_list}
@@ -190,6 +192,9 @@ class RequestDecision:
         else:
             result.approve = False
             result.event_reply = f"已拒绝好友：{req.nickname}"
+            if block:
+                result.block_user = True
+                result.event_reply = f"已拉黑好友申请人：{req.nickname}"
             if extra:
                 result.event_reply += f"\n理由：{extra}"
 
@@ -199,6 +204,7 @@ class RequestDecision:
         approve: bool,
         result: RequestResult,
         extra: str = "",
+        block: bool = False,
     ):
         group_list = await self.client.get_group_list()
         gids = {str(g["group_id"]) for g in group_list}
@@ -215,5 +221,8 @@ class RequestDecision:
         else:
             result.approve = False
             result.event_reply = f"已拒绝群邀请：{req.group_name}"
+            if block:
+                result.block_group = True
+                result.event_reply = f"已拉黑群聊：{req.group_name}"
             if extra:
                 result.event_reply += f"\n理由：{extra}"

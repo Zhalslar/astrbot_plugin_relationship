@@ -94,6 +94,14 @@ class RelationshipPlugin(Star):
         async for msg in self.request.handle_cmd(event, approve=False, extra=extra):
             yield msg
 
+    @filter.command("拉黑")
+    async def block(self, event: AiocqhttpMessageEvent, extra: str = ""):
+        """拒绝并拉黑好友申请人或邀请群"""
+        async for msg in self.request.handle_cmd(
+            event, approve=False, extra=extra, block=True
+        ):
+            yield msg
+
     @filter.permission_type(PermissionType.ADMIN)
     @filter.command("抽查")
     async def check_messages(
@@ -102,7 +110,7 @@ class RelationshipPlugin(Star):
         group_id: int | None = None,
         count: int | None = None,
     ):
-        """抽查 [群号|@群友|@QQ] [数量], 抽查聊天记录"""
+        """抽查 <群号|@群友|@QQ> <数量>, 抽查聊天记录"""
         count = count or self.cfg.check.count
         async for msg in ForwardTool.check_messages(
             event,
@@ -122,7 +130,7 @@ class RelationshipPlugin(Star):
         try:
             from .core.expansion import ExpansionHandle
         except ImportError:
-            yield event.plain_result("该功能仅对开发人员开放")
+            # yield event.plain_result("该功能仅对开发人员开放")
             return
         parts = event.message_str.strip().split()
         args = parts[1:] if len(parts) > 1 else []
@@ -169,7 +177,7 @@ class RelationshipPlugin(Star):
         try:
             from .core.expansion import ExpansionHandle
         except ImportError:
-            yield event.plain_result("该功能仅对开发人员开放")
+            # yield event.plain_result("该功能仅对开发人员开放")
             return
         parts = event.message_str.strip().split()
         args = parts[1:] if len(parts) > 1 else []
