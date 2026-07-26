@@ -45,7 +45,7 @@ class BaseRequest(ABC):
         if not required <= kwargs.keys():
             return None
 
-        kwargs.setdefault("comment", "None")
+        kwargs.setdefault("comment", "无")
         return cls(**kwargs)  # type: ignore
 
     @classmethod
