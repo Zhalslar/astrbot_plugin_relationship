@@ -11,8 +11,6 @@ class NormalHandle:
     def __init__(self, config: PluginConfig):
         self.cfg = config
 
-    # ---------- 查看群列表 ----------
-
     async def get_group_list(self, event: AiocqhttpMessageEvent):
         client = event.bot
         group_list = await client.get_group_list()
@@ -25,8 +23,6 @@ class NormalHandle:
         logger.debug(text)
         yield event.plain_result(text)
 
-    # ---------- 查看好友列表 ----------
-
     async def get_friend_list(self, event: AiocqhttpMessageEvent):
         client = event.bot
         friend_list = await client.get_friend_list()
@@ -38,8 +34,6 @@ class NormalHandle:
         text = f"【好友列表】共 {len(friend_list)} 位好友：\n{info}"
         logger.debug(text)
         yield event.plain_result(text)
-
-    # ---------- 退群（批量 / 区间） ----------
 
     async def set_group_leave(self, event: AiocqhttpMessageEvent):
         """退群 <序号|群号|区间> [可批量]"""
@@ -76,8 +70,6 @@ class NormalHandle:
             msgs.append(f"已退出群聊：{g['group_name']}({gid})")
 
         yield event.plain_result("\n".join(msgs))
-
-    # ---------- 删好友（@ / 批量 / 区间） ----------
 
     async def delete_friend(self, event: AiocqhttpMessageEvent):
         """删好友 <@昵称|QQ|序号|区间> [可批量]"""

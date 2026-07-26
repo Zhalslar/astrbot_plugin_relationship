@@ -2,10 +2,6 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import ClassVar, Optional
 
-# ==========================================================
-# BaseRequest
-# ==========================================================
-
 
 class BaseRequest(ABC):
     """
@@ -17,18 +13,12 @@ class BaseRequest(ABC):
     _HEADER: ClassVar[str]
     _FIELD_MAP: ClassVar[dict[str, str]]
 
-    # -------------------------
-    # 展示
-    # -------------------------
     def to_display_text(self) -> str:
         lines = [self._HEADER]
         for cn, field in self._FIELD_MAP.items():
             lines.append(f"{cn}：{getattr(self, field)}")
         return "\n".join(lines)
 
-    # -------------------------
-    # 从展示文本反序列化
-    # -------------------------
     @classmethod
     def from_display_text(cls, text: str) -> Optional["BaseRequest"]:
         for sub in cls.__subclasses__():
@@ -55,12 +45,9 @@ class BaseRequest(ABC):
         if not required <= kwargs.keys():
             return None
 
-        kwargs.setdefault("comment", "无")
+        kwargs.setdefault("comment", "None")
         return cls(**kwargs)  # type: ignore
 
-    # -------------------------
-    # 从 raw_message 构造
-    # -------------------------
     @classmethod
     async def from_raw(cls, client, raw) -> Optional["BaseRequest"]:
         if not isinstance(raw, dict):
@@ -77,19 +64,12 @@ class BaseRequest(ABC):
     async def _from_raw(cls, client, raw: dict) -> Optional["BaseRequest"]:
         raise NotImplementedError
 
-    # -------------------------
-    # 统一访问接口
-    # -------------------------
     @property
     @abstractmethod
     def requester_id(self) -> str:
         """发起申请的人 ID"""
         raise NotImplementedError
 
-
-# ==========================================================
-# FriendRequest
-# ==========================================================
 
 
 @dataclass
@@ -127,11 +107,6 @@ class FriendRequest(BaseRequest):
             flag=raw.get("flag", ""),
             comment=raw.get("comment") or "无",
         )
-
-
-# ==========================================================
-# GroupRequest
-# ==========================================================
 
 
 @dataclass

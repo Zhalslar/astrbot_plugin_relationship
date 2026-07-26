@@ -117,10 +117,6 @@ class RequestHandle:
 
         elif isinstance(req, GroupRequest):
             if await _try(
-                event.bot.send_group_msg(group_id=int(req.group_id), message=text)
-            ):
-                return
-            if await _try(
                 event.bot.send_private_msg(user_id=int(req.inviter_id), message=text)
             ):
                 return
