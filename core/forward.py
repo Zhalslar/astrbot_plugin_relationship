@@ -209,7 +209,12 @@ class ForwardTool:
                 )
             elif config.manage_users:
                 for user_id in config.manage_users:
-                    await event.bot.send_private_msg(user_id=int(user_id), message=text)
+                    try:
+                        await event.bot.send_private_msg(
+                            user_id=int(user_id), message=text
+                        )
+                    except Exception as e:
+                        logger.warning(f"向审核员 {user_id} 发送消息失败: {e}")
             elif config.admin_id:
                 await event.bot.send_private_msg(
                     user_id=int(config.admin_id), message=text
