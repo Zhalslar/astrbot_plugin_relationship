@@ -1,4 +1,3 @@
-
 import re
 
 from aiocqhttp import CQHttp
@@ -39,7 +38,7 @@ def convert_duration_advanced(duration: int) -> str:
     return "".join(f"{value}{label}" for value, label in non_zero)
 
 
-async def get_nickname(client: CQHttp, group_id: int | str,  user_id: int | str) -> str:
+async def get_nickname(client: CQHttp, group_id: int | str, user_id: int | str) -> str:
     """获取指定群友的群昵称或 Q 名，群接口失败/空结果自动降级到陌生人资料"""
     user_id = int(user_id)
 
@@ -154,4 +153,3 @@ def parse_multi_input(raw: str, total: int) -> tuple[set[int], set[str]]:
                 ids.add(token)
 
     return indexes, ids
-

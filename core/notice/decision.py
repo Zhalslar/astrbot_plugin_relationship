@@ -9,8 +9,6 @@ from .model import NoticeMessage
 
 @dataclass
 class NoticeResult:
-    """业务结果对象"""
-
     admin_reply: str = ""
     operator_reply: str = ""
 
@@ -21,8 +19,6 @@ class NoticeResult:
 
 
 class NoticeDecision:
-    """通知决策层"""
-
     def __init__(
         self,
         client: CQHttp,
@@ -37,9 +33,6 @@ class NoticeDecision:
         self._group_name: str | None = None
         self._operator_name: str | None = None
 
-    # ---------
-    # 公共入口
-    # ---------
     async def decide(self) -> NoticeResult:
         result = NoticeResult()
 
@@ -55,9 +48,6 @@ class NoticeDecision:
 
         return result
 
-    # ----------------
-    # 基础信息获取
-    # ----------------
     async def _get_group_name(self) -> str:
         if self._group_name is None:
             info = (
@@ -75,9 +65,6 @@ class NoticeDecision:
             )
         return self._operator_name
 
-    # ----------------
-    # 各事件处理
-    # ----------------
     async def _handle_admin_change(self, result: NoticeResult):
         group_name = await self._get_group_name()
         gid = self.msg.group_id

@@ -207,6 +207,9 @@ class ForwardTool:
                 await event.bot.send_group_msg(
                     group_id=int(config.manage_group), message=text
                 )
+            elif config.manage_users:
+                for user_id in config.manage_users:
+                    await event.bot.send_private_msg(user_id=int(user_id), message=text)
             elif config.admin_id:
                 await event.bot.send_private_msg(
                     user_id=int(config.admin_id), message=text
