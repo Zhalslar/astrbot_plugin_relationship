@@ -59,6 +59,18 @@ git clone https://github.com/Zhalslar/astrbot_plugin_relationship
 | `加好友 [QQ号/@某人] [验证消息] [备注] [答案]` | 向目标用户发送好友申请   | 仅开发者         |
 | `加群 [群号] [答案] `                          | 向目标群聊发送进群申请   | 仅开发者         |
 
+### LLM Tools（大模型工具调用）
+
+本插件现已全面支持 LLM 函数调用（Function Calling / Tools），大模型可根据语境自主调用以下能力：
+- `llm_get_group_list`: 查看机器人加入的所有群聊列表。
+- `llm_get_friend_list`: 查看机器人的所有好友列表。
+- `llm_leave_group`: 退出指定的群聊。
+- `llm_delete_friend`: 删除指定的好友。
+- `llm_send_contact_card`: 主动发送好友或群聊的推荐名片。
+- `llm_add_friend_request`: 向指定 QQ 用户主动发起添加好友申请。
+- `llm_add_group_request`: 主动向指定 QQ 群发起加群申请。
+- `llm_check_messages`: 抽查指定群聊或用户的历史聊天记录并合并转发到当前会话。
+
 使用说明：
 
 - `同意/拒绝` 必须**引用申请消息**使用。
